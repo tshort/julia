@@ -14,7 +14,7 @@
 
 abstract NAData <: Number
 
-type _NA
+type _NA <: NAData
 end
 const NA = _NA()
 
@@ -30,25 +30,27 @@ IntData(x::Int) = IntData(x, false)
 convert(::Type{IntData}, x::Int) = IntData(x)
 convert(::Type{IntData}, x::_NA) = IntData(0,true)
 
-promote_rule(::Type{IntData}, ::Type{Int64}) = IntData
-promote_rule(::Type{IntData}, ::Type{Int32}) = IntData
 promote_rule(::Type{IntData}, ::Type{_NA}) = IntData
-promote_rule(::Type{Int64}, ::Type{_NA}) = IntData
-promote_rule(::Type{Int32}, ::Type{_NA}) = IntData
+promote_rule{I<:Int}(::Type{I}, ::Type{_NA}) = IntData
+# promote_rule(::Type{Int64}, ::Type{_NA}) = IntData
+# promote_rule(::Type{Int32}, ::Type{_NA}) = IntData
+promote_rule{I<:Int}(::Type{IntData}, ::Type{I}) = IntData
+#promote_rule(::Type{IntData}, ::Type{Int64}) = IntData
+#promote_rule(::Type{IntData}, ::Type{Int32}) = IntData
+
 
 +(a::IntData, b::IntData) = IntData(a.value + b.value, a.mask || b.mask)
-+(a::IntData, b::_NA) = +(promote(a,b)...)
-+(a::_NA, b::IntData) = +(b,a)
-+(a::IntData, b::Int) = +(promote(a,b)...)
-+(a::Int, b::IntData) = +(b,a)
-+(a::Int, b::_NA) = +(promote(a,b)...)
-+(a::_NA, b::Int) = +(promote(a,b)...)
-
+-(a::IntData, b::IntData) = +(a, -b)
+-(a::IntData) = IntData(-a.value, a.mask)
+*(a::IntData, b::IntData) = IntData(a.value * b.value, a.mask || b.mask)
+==(a::IntData, b::IntData) = (a.value == b.value && a.mask == b.mask)
 
  
 
 isna(x::IntData) = x.mask
 isna(x::Int) = isna(convert(IntData,x))
+isna(x::_NA) = true
+
 
 
 ## DataTable - a list of heterogeneous Data vectors with row and col names
