@@ -50,7 +50,10 @@ promote_rule{I<:Int}(::Type{IntData}, ::Type{I}) = IntData
 isna(x::IntData) = x.mask
 isna(x::Int) = isna(convert(IntData,x))
 isna(x::_NA) = true
+@vectorize_1arg NAData isna
 
+show(x::IntData) = x.mask ? show(NA) : show(x.value)
+show(x::_NA) = print("NA")
 
 
 ## DataTable - a list of heterogeneous Data vectors with row and col names

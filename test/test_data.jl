@@ -22,5 +22,12 @@ id4 = IntData(4)
 
 test_group("IntData vectors")
 ida = [1, NA, 4]
-@test ida[1] == IntData(1, false)
+@test all(ida == [IntData(1, false), IntData(0, true), IntData(4, false)])
 @test (ida+1)[2] == IntData(1, true)
+@test all(isna(ida) == [false, true, false])
+
+# TODO: these don't work, although show() mostly works. what is start(IntData) supposed to mean?!
+@test prints(show, (ida[1]), "1")
+@test prints(show, (ida[2]), "NA")
+@test prints(show, ([IntData(0,false), IntData(1,false)]), "[1, 1]")
+@test prints(show, (ida), "[1, NA, 4]")
