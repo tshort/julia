@@ -18,6 +18,10 @@ type _NA <: NAData
 end
 const NA = _NA()
 
+type NAException <: Exception
+    msg::String
+end
+
 type IntData <: NAData
     value::Int64
     mask::Bool
@@ -29,6 +33,8 @@ IntData(x::Int) = IntData(x, false)
 
 convert(::Type{IntData}, x::Int) = IntData(x)
 convert(::Type{IntData}, x::_NA) = IntData(0,true)
+# can only convert non-NA IntData to Int
+convert(::Type{Int}, x::IntData) = x.mask ? throw(NAException("Can't convert NA to base type")) : x.value
 
 promote_rule(::Type{IntData}, ::Type{_NA}) = IntData
 promote_rule{I<:Int}(::Type{I}, ::Type{_NA}) = IntData
@@ -45,6 +51,11 @@ promote_rule{I<:Int}(::Type{IntData}, ::Type{I}) = IntData
 *(a::IntData, b::IntData) = IntData(a.value * b.value, a.mask || b.mask)
 ==(a::IntData, b::IntData) = (a.value == b.value && a.mask == b.mask)
 
+# this needs FloatData
+#/(a::IntData, b::IntData)
+
+# this needs BoolData
+#<(a::IntData, b::IntData) = (a.mask || b.mask) ? NA : a.value < b.value
  
 
 isna(x::IntData) = x.mask

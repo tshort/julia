@@ -153,3 +153,13 @@ function takes_less_than(anything, expected)
     true
 end
 
+function throws(fn::Function, args, expected::Exception)
+    ret = false
+    try
+        fn(args...)
+    catch observed
+        ret = typeof(observed) == expected
+    end
+    ret
+end
+

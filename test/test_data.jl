@@ -20,6 +20,9 @@ id4 = IntData(4)
 @test isna(id3 + NA) == true
 @test isna(id3 * NA) == true
 
+@test convert(Int, id3) == 3
+@test throws(convert, (Int, 0+NA), NAException)
+
 test_group("IntData vectors")
 ida = [1, NA, 4]
 @test all(ida == [IntData(1, false), IntData(0, true), IntData(4, false)])
