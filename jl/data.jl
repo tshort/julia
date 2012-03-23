@@ -4,135 +4,152 @@
 ## Panda's discussion of NAs: http://pandas.pydata.org/pandas-docs/stable/missing_data.html
 ## NumPy's analysis of the issue: https://github.com/numpy/numpy/blob/master/doc/neps/missing-data.rst
 
-## Abstract type is Data, which is a parameterized type that wraps an array of a type and a bit array
+## Abstract type is DataVec, which is a parameterized type that wraps an vector of a type and a (bit) array
 ## for the mask. 
 
 bitstype 64 Mask
 
-type Data{T}
-    dat::Vector{T}
-    mask::Vector{Mask}
+type DataVec{T}
+    data::Vector{T}
+    na::AbstractVector{Bool} # TODO use a bit array
     
-    # constructor enforces requirement that the mask have the right number of bits
+    # sanity check lengths
+    function DataVec(d, m)
+        if (length(d) != length(m))
+            error("data and mask vectors not the same length!")
+        end
+        new(d,m)
+    end     
 end
 
-function bool2mask(x::Vector{Bool})
-    # convert a vector of booleans to a bit-vector of Mask-sized elements
-    # split the vector up into chunks of size 64
-    # convert each to a 
-    masklen = convert(Int, ceil(length(x) / 64.0))
-    []
+type NAtype; end
+const NA = NAtype()
+show(x::NAtype) = print("NA")
+
+type NAException <: Exception
+    msg::String
 end
 
-convert(::Type{Mask}, x::Any) = boxui64(0)
-
-function _bool2mask(x::Vector{Bool})
-    # convert a 64-vector to a single Mask
-    m = empty
-
-function Data(x::Vector{T}, m::Vector{Bool})
-    @assert length(x) == length(m)
+# constructor from type
+function ref(::Type{DataVec}, vals...)
+    lenvals = length(vals)
+    # first, iterate over vals to find the most generic non-NA type
+    toptype = None
+    for i = 1:lenvals
+        if vals[i] != NA
+            toptype = promote_type(toptype, typeof(vals[i]))
+        end
+    end
     
+    # then, allocate vectors
+    ret = DataVec(Array(toptype, lenvals), falses(lenvals))
+    # copy from vals into data and mask
+    for i = 1:lenvals
+        if vals[i] == NA
+            # ret.data[i] = default
+            ret.na[i] = true
+        else
+            ret.data[i] = vals[i]
+            # ret.na[i] = false (default)
+        end
+    end
     
+    return ret
 end
 
-# ways to construct a Data object...
-# Constructors should exist that take a data vector and a mask vector of booleans,
-# which gets converted to the bitmask.
-# That will work fine for things like file input.
-# But that doesn't work for interactive input!
-# One option would be promote mixed arrays to a union type, which gets reconverted
-# to the Data type:
-# Data([1, 2, NA, 4])
-# Another option would be to use cell arrays and specify the data type, ala:
-# IntData({1, 2, NA, 4})
-# Either should be ok for efficiency, because manual input will only be applicable
-# for very small arrays. Will try the former first.
+# constructor from base type object
+DataVec(x::Vector) = DataVec(x, falses(length(x)))
 
-type _NA
-end
-const NA = _NA()
-show(x::_NA) = print("NA")
+# properties
+size(v::DataVec) = size(v.data)
+length(v::DataVec) = length(v.data)
+isna(v::DataVec) = v.na
+eltype{T}(v::DataVec{T}) = T
 
-IntNA = Union(Int64, _NA)
-FloatNA = Union(Float, _NA)
-BoolNA = Union(Bool, _NA)
-
-convert(::Type{Int64}, ::Type{_NA}) = typemin(Int64)
-convert(::Type{Float64}, ::Type{_NA}) = NaN
-convert(::Type{Bool}, ::Type{_NA}) = false
-
-promote_rule{T<:Int}(::Type{T}, ::Type{_NA}) = IntNA
-promote_rule{T<:Int}(::Type{T}, ::Type{IntNA}) = IntNA
-
-function D(v::Vector{IntNA})
-    Data(map(x->(typeof(x)==_NA ? 0 : convert(Int,x)), v),
-         map(x->(typeof(x)==_NA), v))
+# equality, respecting NAs, should be pretty fast
+function =={T}(a::DataVec{T}, b::DataVec{T})
+    if (length(a) != length(b))
+        return false
+    else
+        for i = 1:length(a)
+            if (a.na[i] != b.na[i])
+                return false
+            elseif (!a.na[i] && !b.na[i] && a.data[i] != b.data[i])
+                return false
+            end
+        end
+    end
+    return true
 end
 
-# ## Core data types
-# ## IntData -- Int64 + mask for NA
-# ## FloatData -- Float64 + mask for NA
-# ## StringData -- CharString + mask for NA
-# ## BoolData -- Bool + payload for NA?
-# ## DateData -- TBD
-# ## FactorData -- TBD
-# 
-# abstract NAData <: Number
-# 
-# type _NA <: NAData
-# end
-# const NA = _NA()
-# 
-# type NAException <: Exception
-#     msg::String
-# end
-# 
-# type IntData <: NAData
-#     value::Int64
-#     mask::Bool
-# end
-# IntData(x::Int) = IntData(x, false)
-# 
-# # naData(x::Int) = IntData(x)
-# # naData(x::Int, m::Bool) = IntData(x, m)
-# 
-# convert(::Type{IntData}, x::Int) = IntData(x)
-# convert(::Type{IntData}, x::_NA) = IntData(0,true)
-# # can only convert non-NA IntData to Int
-# convert(::Type{Int}, x::IntData) = x.mask ? throw(NAException("Can't convert NA to base type")) : x.value
-# 
-# promote_rule(::Type{IntData}, ::Type{_NA}) = IntData
-# promote_rule{I<:Int}(::Type{I}, ::Type{_NA}) = IntData
-# # promote_rule(::Type{Int64}, ::Type{_NA}) = IntData
-# # promote_rule(::Type{Int32}, ::Type{_NA}) = IntData
-# promote_rule{I<:Int}(::Type{IntData}, ::Type{I}) = IntData
-# #promote_rule(::Type{IntData}, ::Type{Int64}) = IntData
-# #promote_rule(::Type{IntData}, ::Type{Int32}) = IntData
-# 
-# 
-# +(a::IntData, b::IntData) = IntData(a.value + b.value, a.mask || b.mask)
-# -(a::IntData, b::IntData) = +(a, -b)
-# -(a::IntData) = IntData(-a.value, a.mask)
-# *(a::IntData, b::IntData) = IntData(a.value * b.value, a.mask || b.mask)
-# ==(a::IntData, b::IntData) = (a.value == b.value && a.mask == b.mask)
-# 
-# # this needs FloatData
-# #/(a::IntData, b::IntData)
-# 
-# # this needs BoolData
-# #<(a::IntData, b::IntData) = (a.mask || b.mask) ? NA : a.value < b.value
-#  
-# 
-# isna(x::IntData) = x.mask
-# isna(x::Int) = isna(convert(IntData,x))
-# isna(x::_NA) = true
-# @vectorize_1arg NAData isna
-# 
-# show(x::IntData) = x.mask ? show(NA) : show(x.value)
-# show(x::_NA) = print("NA")
-# 
-# 
+# for arithmatic, NAs propogate
+for f in (:+, :-, :.*, :div, :mod, :&, :|, :$)
+    @eval begin
+        function ($f){S,T}(A::DataVec{S}, B::DataVec{T})
+            if (length(A) != length(B)) error("DataVec lengths must match"); end
+            F = DataVec(Array(promote_type(S,T), length(A)), Array(Bool, length(A)))
+            for i=1:length(A)
+                F.na[i] = (A.na[i] || B.na[i])
+                F.data[i] = ($f)(A.data[i], B.data[i])
+            end
+            return F
+        end
+        function ($f){T}(A::Number, B::DataVec{T})
+            F = DataVec(Array(promote_type(typeof(A),T), length(B)), B.na)
+            for i=1:length(B)
+                F.data[i] = ($f)(A, B.data[i])
+            end
+            return F
+        end
+        function ($f){T}(A::DataVec{T}, B::Number)
+            F = DataVec(Array(promote_type(typeof(B),T), length(A)), A.na)
+            for i=1:length(A)
+                F.data[i] = ($f)(A.data[i], B)
+            end
+            return F
+        end
+    end
+end
+
+# single-element access
+ref(x::DataVec, i::Number) = x.na[i] ? NA : x.data[i]
+
+# range access
+# TODO
+
+# things to deal with unwanted NAs -- lower case returns the base type, with overhead,
+# mixed case returns an iterator
+nafilter{T}(v::DataVec{T}) = v.data[!v.na]
+nareplace{T}(v::DataVec{T}, r::T) = [v.na[i] ? r : v.data[i] | i = 1:length(v.data)]
+
+# naFilter is just a type that wraps a DataVec in something that allows start/next/done
+#naFilter TODO
+# naReplace is similar, but it uses a type constructor with a value that gets stored
+#naReplace TODO
+
+# can promote in theory based on data type
+promote_rule{S,T}(::Type{DataVec{S}}, ::Type{T}) = promote_rule(S, T)
+promote_rule{T}(::Type{DataVec{T}}, ::Type{T}) = T
+
+# convert to the base type, but only if there are no NAs
+function convert{T}(::Type{T}, x::DataVec{T})
+    if (any(x.na))
+        throw(NAException("Cannot convert DataVec with NAs to base type -- naFilter or naReplace them first"))
+    else
+        return x.data
+    end
+end
+
+# iterator returning Union{T,NAtype}
+start(x::DataVec) = 1
+function next(x::DataVec, state::Int)
+    (x.na[state] ? NA : x.data[state], state+1)
+end
+done(x::DataVec, state::Int) = state > length(x.data)
+
+# print
+show(x::DataVec) = show_comma_array(x, '[', ']') 
+
 # ## DataTable - a list of heterogeneous Data vectors with row and col names
 # 
 # 
