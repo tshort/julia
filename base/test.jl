@@ -90,6 +90,7 @@ function _test(ex::Expr)
     local tr = TestResult()
     tr.context = tls(:context)
     tr.group = tls(:group)
+    local res
     
     # unwrap once
     ex = eval(ex)
@@ -99,9 +100,15 @@ function _test(ex::Expr)
     
     # eval the whole thing, capturing exceptions and times
     try
-        tr.elapsed = @elapsed tr.result = eval(ex)
+        tr.elapsed = @elapsed res = eval(ex)
     catch except
         tr.exception_thrown = except
+    end
+    
+    if isa(res, Array{Bool})
+        tr.result = all(res)
+    else
+        tr.result = res
     end
     
     # if we failed without an exception, pull apart the expression and see about evaluating

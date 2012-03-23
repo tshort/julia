@@ -7,20 +7,18 @@
 ## Abstract type is DataVec, which is a parameterized type that wraps an vector of a type and a (bit) array
 ## for the mask. 
 
-bitstype 64 Mask
+bitstype 64 Mask # TODO
 
 type DataVec{T}
     data::Vector{T}
     na::AbstractVector{Bool} # TODO use a bit array
     
     # sanity check lengths
-    function DataVec(d, m)
-        if (length(d) != length(m))
-            error("data and mask vectors not the same length!")
-        end
-        new(d,m)
-    end     
+    DataVec{T}(d::Vector{T}, m::Vector{Bool}) = (length(d) != length(m)) ? 
+                                                error("data and mask vectors not the same length!") :
+                                                new(d,m)
 end
+DataVec{T}(d::Vector{T}, m::Vector{Bool}) = DataVec{T}(d, m)
 
 type NAtype; end
 const NA = NAtype()

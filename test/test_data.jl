@@ -1,36 +1,35 @@
 test_context("Data types and NAs")
 
-test_group("IntData")
-id3 = IntData(3)
-id4 = IntData(4)
+test_group("DataVec creation")
+dvint = DataVec[1, 2, NA, 4]
+dvint2 = DataVec([5:8])
 
-@test id3 == IntData(3, false)
-@test id3 + id4 == IntData(7, false)
-@test id3 + 1 == id4
+@test typeof(dvint) == DataVec{Int64}
+@test typeof(dvint2) == DataVec{Int64}
+#@test throws(DataVec, ([5:8], falses(2)), Exception)
 
-@test id3 + NA == IntData(3, true)
-@test NA + id4 == IntData(4, true)
+test_group("DataVec access")
+@test dvint[1] == 1
+@test dvint[3] == NA
 
-@test id3 * 1 == id3
-@test id3 * id4 == IntData(12)
+test_group("DataVec methods")
+@test size(dvint) == (4,)
+@test length(dvint) == 4
+@test sum(isna(dvint)) == 1
+@test eltype(dvint) == Int64
 
-@test isna(NA) == true
-@test isna(3) == false
+test_group("DataVec operations")
+@test dvint+1 == DataVec([2,3,4,5], [false, false, true, false])
+@test dvint.*2 == DataVec[2,4,NA,8]
 
-@test isna(id3 + NA) == true
-@test isna(id3 * NA) == true
+test_group("DataVec to something else")
+@test nafilter(dvint) == [1,2,4]
+@test nareplace(dvint,0) == [1,2,0,4]
+@test convert(Int, dvint2) == [5:8]
+@test [i+1 | i=dvint2] == [6:9] # iterator test
+@test print_to_string(show, dvint) == "[1,2,NA,4]"
 
-@test convert(Int, id3) == 3
-@test throws(convert, (Int, 0+NA), NAException)
 
-test_group("IntData vectors")
-ida = [1, NA, 4]
-@test all(ida == [IntData(1, false), IntData(0, true), IntData(4, false)])
-@test (ida+1)[2] == IntData(1, true)
-@test all(isna(ida) == [false, true, false])
 
-# TODO: these don't work, although show() mostly works. what is start(IntData) supposed to mean?!
-@test prints(show, (ida[1]), "1")
-@test prints(show, (ida[2]), "NA")
-@test prints(show, ([IntData(0,false), IntData(1,false)]), "[1, 1]")
-@test prints(show, (ida), "[1, NA, 4]")
+
+
