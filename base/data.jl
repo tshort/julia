@@ -28,6 +28,9 @@ type NAException <: Exception
     msg::String
 end
 
+length(x::NAtype) = 0
+size(x::NAtype) = (0,)
+
 # constructor from type
 function ref(::Type{DataVec}, vals...)
     lenvals = length(vals)
@@ -113,7 +116,9 @@ end
 ref(x::DataVec, i::Number) = x.na[i] ? NA : x.data[i]
 
 # range access
-# TODO
+function ref(x::DataVec, r::Range1)
+    DataVec(x.data[r], x.na[r])
+end
 
 # things to deal with unwanted NAs -- lower case returns the base type, with overhead,
 # mixed case returns an iterator
