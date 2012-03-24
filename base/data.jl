@@ -61,6 +61,10 @@ end
 # constructor from base type object
 DataVec(x::Vector) = DataVec(x, falses(length(x)))
 
+# TODO: copy_to
+# TODO: similar
+
+
 # properties
 size(v::DataVec) = size(v.data)
 length(v::DataVec) = length(v.data)
@@ -120,12 +124,103 @@ function ref(x::DataVec, r::Range1)
     DataVec(x.data[r], x.na[r])
 end
 
+# logical access -- note that unlike Array logical access, this throws an error if
+# the index vector is not the same size as the data vector
+function ref(x::DataVec, ind::Vector{Bool})
+    if length(x) != length(ind)
+        throw(ArgumentError("boolean index is not the same size as the DataVec"))
+    end
+    DataVec(x.data[ind], x.na[ind])
+end
+
+# array index access
+function ref(x::DataVec, ind::Vector{Int})
+    DataVec(x.data[ind], x.na[ind])
+end
+
+# assign variants
+function assign{T}(x::DataVec{T}, v::T, i::Int)
+    x.data[i] = v
+    x.na[i] = false
+    return x[i]
+end
+function assign{T}(x::DataVec{T}, v::T, is::Vector{Int})
+    x.data[is] = v
+    x.na[is] = false
+    return x[is] # this could get slow -- maybe not...
+end
+function assign{T}(x::DataVec{T}, vs::Vector{T}, is::Vector{Int})
+    if length(is) != length(vs)
+        throw(ArgumentError("can't assign when index and data vectors are different length"))
+    end
+    x.data[is] = vs
+    x.na[is] = false
+    return x[is]
+end
+function assign{T}(x::DataVec{T}, v::T, mask::Vector{Bool})
+    x.data[mask] = v
+    x.na[mask] = false
+    return x[mask]
+end
+function assign{T}(x::DataVec{T}, vs::Vector{T}, mask::Vector{Bool})
+    if sum(mask) != length(vs)
+        throw(ArgumentError("can't assign when boolean trues and data vectors are different length"))
+    end
+    x.data[mask] = vs
+    x.na[mask] = false
+    return x[mask]
+end
+function assign{T}(x::DataVec{T}, v::T, rng::Range1)
+    x.data[rng] = v
+    x.na[rng] = false
+    return x[rng]
+end
+function assign{T}(x::DataVec{T}, vs::Vector{T}, rng::Range1)
+    if length(rng) != length(vs)
+        throw(ArgumentError("can't assign when index and data vectors are different length"))
+    end
+    x.data[rng] = vs
+    x.na[rng] = false
+    return x[rng]
+end
+assign{T}(x::DataVec{T}, n::NAtype, i::Int) = begin (x.na[i] = true); return x[i]; end
+assign{T}(x::DataVec{T}, n::NAtype, is::Vector{Int}) = begin (x.na[is] = true); x[is]; end
+assign{T}(x::DataVec{T}, n::NAtype, mask::Vector{Bool}) = begin (x.na[mask] = true); x[mask]; end
+assign{T}(x::DataVec{T}, n::NAtype, rng::Range1) = begin (x.na[rng] = true); x[rng]; end
+
+
 # things to deal with unwanted NAs -- lower case returns the base type, with overhead,
 # mixed case returns an iterator
 nafilter{T}(v::DataVec{T}) = v.data[!v.na]
 nareplace{T}(v::DataVec{T}, r::T) = [v.na[i] ? r : v.data[i] | i = 1:length(v.data)]
 
 # naFilter is just a type that wraps a DataVec in something that allows start/next/done
+# TODO: I think this should maybe descend from a common abstract type, to allow indexing
+# and such to work? or maybe it shouldn't...
+type FilteredDataVec{T}
+    datavec::DataVec{T}
+end
+naFilter{T}(v::DataVec{T}) = FilteredDataVec{T}(v)
+# start starts at the beginning. Next iterates until it finds something, or throws an
+# error. Done iterates until it finds something, or returns true.
+start(x::FilteredDataVec) = 1
+function next(x::FilteredDataVec, state::Int)
+    for i = state:length(x.datavec)
+        if !x.datavec.na[i]
+            return (x.datavec.data[i], i+1)
+        end
+    end
+    error("called next(FilteredDataVec) without calling done() first")
+end
+function done(x::FilteredDataVec, state::Int)
+    for i = state:length(x.datavec)
+        if !x.datavec.na[i]
+            return false
+        end
+    end
+    return true
+end
+
 #naFilter TODO
 # naReplace is similar, but it uses a type constructor with a value that gets stored
 #naReplace TODO
@@ -142,6 +237,12 @@ function convert{T}(::Type{T}, x::DataVec{T})
         return x.data
     end
 end
+
+# TODO for common functions on vectors, try to convert to the base type, then dispatch
+# sum
+# prod
+# mean
+# norm
 
 # iterator returning Union{T,NAtype}
 start(x::DataVec) = 1

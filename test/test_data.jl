@@ -1,6 +1,7 @@
 test_context("Data types and NAs")
 
 test_group("DataVec creation")
+# why can't I put @test before these?
 dvint = DataVec[1, 2, NA, 4]
 dvint2 = DataVec([5:8])
 dvflt = DataVec[1.0, 2, NA, 4]
@@ -10,12 +11,15 @@ dvstr = DataVec["one", "two", NA, "four"]
 @test typeof(dvint2) == DataVec{Int64}
 @test typeof(dvflt) == DataVec{Float64}
 @test typeof(dvstr) == DataVec{ASCIIString}
-#@test throws(DataVec, ([5:8], falses(2)), Exception)
+#@test throws(DataVec, ([5:8], falses(2)), Exception) not currently working test type
 
 test_group("DataVec access")
 @test dvint[1] == 1
 @test dvint[3] == NA
 @test dvflt[3:4] == DataVec[NA,4.0]
+@test dvint[[true, false, true, false]] == DataVec[1,NA]
+@test dvstr[[1,2,1,4]] == DataVec["one", "two", "one", "four"]
+#@test dvstr[[1,2,1,3]] == DataVec["one", "two", "one", NA] fails due to undef
 
 test_group("DataVec methods")
 @test size(dvint) == (4,)
@@ -35,7 +39,28 @@ test_group("DataVec to something else")
 @test [length(x)::Int | x=dvstr] == [3,3,0,4]
 @test print_to_string(show, dvint) == "[1,2,NA,4]"
 
-
-
-
-
+test_group("DataVec assignment")
+assigntest = DataVec[1, 2, NA, 4]
+assigntest[1] = 8
+@test assigntest == DataVec[8, 2, NA, 4]
+assigntest[1:2] = 9
+@test assigntest == DataVec[9, 9, NA, 4]
+assigntest[[1,3]] = 10
+@test assigntest == DataVec[10, 9, 10, 4]
+assigntest[[true, false, true, true]] = 11
+@test assigntest == DataVec[11, 9, 11, 11]
+assigntest[1:2] = [12,13]
+@test assigntest == DataVec[12, 13, 11, 11]
+assigntest[[1,4]] = [14,15]
+@test assigntest == DataVec[14, 13, 11, 15]
+assigntest[[true,false,true,false]] = [16,17]
+@test assigntest == DataVec[16, 13, 17, 15]
+assigntest[1] = NA
+@test assigntest == DataVec[NA, 13, 17, 15]
+assigntest[[1,2]] = NA
+@test assigntest == DataVec[NA, NA, 17, 15]
+assigntest[[true,false,true,false]] = NA
+@test assigntest == DataVec[NA, NA, NA, 15]
+assigntest[1] = 1
+assigntest[2:4] = NA
+@test assigntest == DataVec[1, NA, NA, NA]
