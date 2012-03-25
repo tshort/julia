@@ -19,7 +19,7 @@ test_group("DataVec access")
 @test dvflt[3:4] == DataVec[NA,4.0]
 @test dvint[[true, false, true, false]] == DataVec[1,NA]
 @test dvstr[[1,2,1,4]] == DataVec["one", "two", "one", "four"]
-#@test dvstr[[1,2,1,3]] == DataVec["one", "two", "one", NA] fails due to undef
+@test dvstr[[1,2,1,3]] == DataVec["one", "two", "one", NA] 
 
 test_group("DataVec methods")
 @test size(dvint) == (4,)

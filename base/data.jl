@@ -31,6 +31,11 @@ end
 length(x::NAtype) = 0
 size(x::NAtype) = (0,)
 
+# TODO: Move me to a more appropriate spot
+# this allows zero(String) to work
+oftype(::Type{ASCIIString},c) = repeat(" ",c)
+
+
 # constructor from type
 function ref(::Type{DataVec}, vals...)
     lenvals = length(vals)
@@ -42,12 +47,14 @@ function ref(::Type{DataVec}, vals...)
         end
     end
     
+    # TODO: confirm that this type has a zero() 
+    
     # then, allocate vectors
     ret = DataVec(Array(toptype, lenvals), falses(lenvals))
     # copy from vals into data and mask
     for i = 1:lenvals
         if vals[i] == NA
-            # ret.data[i] = default
+            ret.data[i] = zero(toptype)
             ret.na[i] = true
         else
             ret.data[i] = vals[i]
