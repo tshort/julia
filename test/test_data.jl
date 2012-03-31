@@ -13,6 +13,8 @@ dvstr = DataVec["one", "two", NA, "four"]
 @test typeof(dvstr) == DataVec{ASCIIString}
 #@test throws(DataVec, ([5:8], falses(2)), Exception) not currently working test type
 
+@test DataVec(dvint) == dvint 
+
 test_group("DataVec access")
 @test dvint[1] == 1
 @test dvint[3] == NA
@@ -70,3 +72,13 @@ assigntest[[true,false,true,false]] = NA
 assigntest[1] = 1
 assigntest[2:4] = NA
 @test assigntest == DataVec[1, NA, NA, NA]
+
+test_context("DataFrames")
+
+test_group("constructors")
+df1 = DataFrame({dvint, dvstr}, ["a","b","c","d"], ["Ints", "Strs"])
+df2 = DataFrame({dvint, dvstr})
+df3 = DataFrame({dvint})
+df4 = DataFrame(1:4)
+df5 = DataFrame({1:4, dvstr})
+df6 = DataFrame({dvint, dvint, dvstr}, ["a","b","c","d"], ["A", "B", "C"])
