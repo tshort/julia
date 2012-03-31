@@ -39,6 +39,12 @@ test_group("DataVec to something else")
 @test [length(x)::Int | x=dvstr] == [3,3,0,4]
 @test print_to_string(show, dvint) == "[1,2,NA,4]"
 
+test_group("DataVec Filter and Replace")
+@test naFilter(dvint) == dvint
+@test naReplace(dvint,7) == dvint
+@test sum(naFilter(dvint)) == 7
+@test sum(naReplace(dvint,7)) == 14
+
 test_group("DataVec assignment")
 assigntest = DataVec[1, 2, NA, 4]
 assigntest[1] = 8
