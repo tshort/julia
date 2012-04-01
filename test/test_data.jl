@@ -79,6 +79,13 @@ test_group("constructors")
 df1 = DataFrame({dvint, dvstr}, ["a","b","c","d"], ["Ints", "Strs"])
 df2 = DataFrame({dvint, dvstr})
 df3 = DataFrame({dvint})
-df4 = DataFrame(1:4)
-df5 = DataFrame({1:4, dvstr})
+#df4 = DataFrame(1:4)
+#df5 = DataFrame({1:4, dvstr})
 df6 = DataFrame({dvint, dvint, dvstr}, ["a","b","c","d"], ["A", "B", "C"])
+
+test_group("description functions")
+
+test_group("ref")
+
+test_group("show")
+
