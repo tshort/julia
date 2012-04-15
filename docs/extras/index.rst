@@ -1,11 +1,9 @@
 
-Standard Library
-================
+Extras
+======
 
 Contents:
 
 .. toctree::
    :maxdepth: 2
-
-   darray
 
