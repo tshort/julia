@@ -1,0 +1,25 @@
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+ Julia Language Documentation
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+A test of using Sphinx_ to document Julia_.
+
+.. _Sphinx: http://sphinx.pocoo.org/
+.. _Julia: http://julialang.org/
+
+Contents:
+
+.. toctree::
+   :maxdepth: 2
+
+   base/index
+   extras/index
+
+Indices and tables
+==================
+
+* :ref:`genindex`
+* :ref:`modindex`
+* :ref:`search`
+
