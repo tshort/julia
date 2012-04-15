@@ -6,20 +6,6 @@
 
 // array of color schemes
 var color_schemes = [
-    ["Classic", {
-        background_color: "#f8f8f8",
-        text_color: "#444444",
-        message_color: "#0000aa",
-        error_color: "#ff0000",
-        prompt_color: "#00aa00",
-        plot_grid_color: "#dadada",
-        plot_axis_color: "#aaaaaa",
-        plot_text_color: "#444444",
-        plot_line_color: "#4d87b7",
-        plot_rect_color: "#4d87c7",
-        plot_rect_stroke_width: "0",
-        plot_rect_stroke_color: "#FFFFFF",
-    }],
     ["Dark", {
         background_color: "#000000",
         text_color: "#dddddd",
@@ -34,10 +20,31 @@ var color_schemes = [
         plot_rect_stroke_width: "0",
         plot_rect_stroke_color: "#FFFFFF",
     }],
+    ["Light", {
+        background_color: "#f8f8f8",
+        text_color: "#444444",
+        message_color: "#0000aa",
+        error_color: "#ff0000",
+        prompt_color: "#00aa00",
+        plot_grid_color: "#dadada",
+        plot_axis_color: "#aaaaaa",
+        plot_text_color: "#444444",
+        plot_line_color: "#4d87b7",
+        plot_rect_color: "#4d87c7",
+        plot_rect_stroke_width: "0",
+        plot_rect_stroke_color: "#FFFFFF",
+    }],
 ];
 
 // the current color scheme
 var current_color_scheme = 0;
+
+// Fetch items out of local storage if they exist
+if (Modernizr.localstorage) {
+    if (localStorage.getItem("current_color_scheme")) {
+        current_color_scheme = localStorage.getItem("current_color_scheme");
+    }
+}
 
 // apply a particular color scheme -- call this every time the terminal content changes
 function apply_color_scheme() {
@@ -53,6 +60,10 @@ function apply_color_scheme() {
     $("svg .line").css("stroke", color_schemes[current_color_scheme][1].plot_line_color);
     $("svg .rect").css("fill", color_schemes[current_color_scheme][1].plot_rect_color);
     $("svg .rect").css("stroke", color_schemes[current_color_scheme][1].plot_rect_stroke_width);
+    
+    if (Modernizr.localstorage) {
+        localStorage.setItem("current_color_scheme", current_color_scheme);
+    }
 }
 
 // when the DOM loads
@@ -60,7 +71,7 @@ $(document).ready(function() {
     // add the color scheme options to the picker
     var options_str = "";
     for (var i in color_schemes)
-        options_str += "<option>"+color_schemes[i][0]+"</option>";
+        options_str += "<option " + (current_color_scheme === i ? "selected" : "") + ">"+color_schemes[i][0]+"</option>";
     $("select#color-scheme-picker").html(options_str);
 
     // add a hook to the change event of the color picker
@@ -858,6 +869,27 @@ $(document).ready(function() {
 
                 // prevent the form from actually submitting
                 return false;
+                
+            case 67:
+                // C key pressed
+                if (evt.ctrlKey) {
+                    // ctrl-c to cancel a command
+                    
+                    add_to_terminal("<span class=\"color-scheme-error\">Process Killed<span><br /><br />");
+                    
+                    // show the prompt
+                    $("#prompt").show();
+
+                    // re-enable the input field
+                    $("#terminal-input").removeAttr("disabled");
+
+                    // focus the input field
+                    $("#terminal-input").focus();
+                    
+                    waiting_for_message = false;
+                }
+                
+            //return false;
         }
     });
 
