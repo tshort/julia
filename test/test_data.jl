@@ -11,7 +11,7 @@ dvstr = DataVec["one", "two", NA, "four"]
 @test typeof(dvint2) == DataVec{Int64}
 @test typeof(dvflt) == DataVec{Float64}
 @test typeof(dvstr) == DataVec{ASCIIString}
-#@test throws(DataVec, ([5:8], falses(2)), Exception) not currently working test type
+@test throws_exception(DataVec[[5:8], falses(2)], Exception) 
 
 @test DataVec(dvint) == dvint 
 
@@ -34,11 +34,11 @@ test_group("DataVec operations")
 @test dvint.*2 == DataVec[2,4,NA,8]
 
 test_group("DataVec to something else")
-@test nafilter(dvint) == [1,2,4]
-@test nareplace(dvint,0) == [1,2,0,4]
-@test convert(Int, dvint2) == [5:8]
-@test [i+1 | i=dvint2] == [6:9] # iterator test
-@test [length(x)::Int | x=dvstr] == [3,3,0,4]
+@test all(nafilter(dvint) == [1,2,4]) # TODO: test.jl should grok all(a == b)
+@test all(nareplace(dvint,0) == [1,2,0,4])
+@test all(convert(Int, dvint2) == [5:8])
+@test all([i+1 | i=dvint2] == [6:9]) # iterator test
+@test all([length(x)::Int | x=dvstr] == [3,3,0,4])
 @test print_to_string(show, dvint) == "[1,2,NA,4]"
 
 test_group("DataVec Filter and Replace")
@@ -86,8 +86,8 @@ df6 = DataFrame({dvint, dvint, dvstr}, ["a","b","c","d"], ["A", "B", "C"])
 test_group("description functions")
 @test nrow(df6) == 4
 @test ncol(df6) == 3
-@test names(df6) == ["A", "B", "C"]
-@test names(df2) == nothing
+@test all(names(df6) == ["A", "B", "C"])
+@test all(names(df2) == [nothing, nothing])
 
 test_group("ref")
 @test df6[2,3] == "two"
