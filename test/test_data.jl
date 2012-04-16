@@ -97,6 +97,9 @@ test_group("ref")
 @test ncol(df6[[2,3]]) == 2
 @test nrow(df6[2,:]) == 1
 @test size(df6[[1,3], [1,3]]) == (2,2)
+@test size(df6[1:2, 1:2]) == (2,2)
+@test size(head(df6,2)) == (2,3)
+# lots more to do
 
 test_group("show")
 @test print_to_string(show, df1) == "   Ints Strs\na     1  one\nb     2  two\nc    NA   NA\nd     4 four\n"
