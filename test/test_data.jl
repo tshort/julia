@@ -1,5 +1,12 @@
 test_context("Data types and NAs")
 
+test_group("NAs")
+@test length(NA) == 1
+@test size(NA) == ()
+#@test (3 == NA) == NA Ironically not testable!
+#@test (NA == 3) == NA
+#@test (NA == NA) == NA
+
 test_group("DataVec creation")
 # why can't I put @test before these?
 dvint = DataVec[1, 2, NA, 4]
@@ -17,7 +24,7 @@ dvstr = DataVec["one", "two", NA, "four"]
 
 test_group("DataVec access")
 @test dvint[1] == 1
-@test dvint[3] == NA
+@test isna(dvint[3])
 @test dvflt[3:4] == DataVec[NA,4.0]
 @test dvint[[true, false, true, false]] == DataVec[1,NA]
 @test dvstr[[1,2,1,4]] == DataVec["one", "two", "one", "four"]
@@ -38,7 +45,7 @@ test_group("DataVec to something else")
 @test all(nareplace(dvint,0) == [1,2,0,4])
 @test all(convert(Int, dvint2) == [5:8])
 @test all([i+1 | i=dvint2] == [6:9]) # iterator test
-@test all([length(x)::Int | x=dvstr] == [3,3,0,4])
+@test all([length(x)::Int | x=dvstr] == [3,3,1,4])
 @test print_to_string(show, dvint) == "[1,2,NA,4]"
 
 test_group("DataVec Filter and Replace")
