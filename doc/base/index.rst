@@ -1,9 +1,9 @@
 
 .. _base-index:
 
-####################
- Built-in Functions
-####################
+###########
+ Built-ins
+###########
 
 Contents:
 

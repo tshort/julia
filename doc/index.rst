@@ -1,7 +1,7 @@
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
- Julia Language Documentation
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+ The Julia Standard Library
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 A test of using Sphinx_ to document Julia_.
 
