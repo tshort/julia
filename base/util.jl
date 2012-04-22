@@ -303,15 +303,13 @@ function apropos(txt::String)
     r = Regex("\\Q$txt", PCRE_CASELESS)
     first = true
     for (cat, _) in _jl_help_categories
-        println(cat)
         if matches(r, cat)
             println("Category: \"$cat\"")
             first = false
         end
     end
     for (func, entries) in _jl_help_functions
-        if matches(r, func) || anyp(e->(matches(r,e[1]) || matches(r,e[2])),
-                                    entries)
+        if matches(r, func) || anyp(e->matches(r,e), entries)
             if !first
                 println()
             end
