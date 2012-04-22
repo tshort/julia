@@ -17,8 +17,7 @@ Contents:
 .. toctree::
    :maxdepth: 2
 
-   base/index
-   extras/index
+   stdlib/index
 
 Indices and tables
 ==================
