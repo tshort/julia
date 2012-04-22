@@ -162,7 +162,7 @@ The ``state`` object may be anything, and should be chosen appropriately for eac
 
    Test whether we are done iterating
 
-.. function:: (item, state) = next(iter, state)
+.. function:: next(iter, state) -> item, state
 
    For a given iterable object and iteration state, return the current item and the next iteration state
 
@@ -1124,23 +1124,23 @@ Linear algebra functions in Julia are largely implemented by calling functions f
 
    Compute the norm of a ``Vector`` or a ``Matrix``
 
-.. function:: R = chol(A)
+.. function:: chol(A)
 
    Compute Cholesky factorization
 
-.. function:: (L, U, p) = lu(A)
+.. function:: lu(A) -> L, U, p
 
    Compute LU factorization
 
-.. function:: (Q, R, p) = qr(A)
+.. function:: qr(A) -> Q, R, p
 
    Compute QR factorization
 
-.. function:: (D, V) = eig(A)
+.. function:: eig(A) -> D, V
 
    Compute eigenvalues and eigenvectors of A
 
-.. function:: (U, S, V) = svd(A)
+.. function:: svd(A) -> U, S, V
 
    Compute the SVD of A
 
@@ -1223,7 +1223,7 @@ Combinatorics
 
    Sort with a custom comparison function
 
-.. function:: (s,p) = sortperm(v)
+.. function:: sortperm(v) -> s,p
 
    Sort a vector in ascending order, also constructing the permutation that sorts the vector
 

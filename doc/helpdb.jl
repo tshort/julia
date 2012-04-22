@@ -232,7 +232,7 @@ function _jl_help_db() return [
 
 "),
 
-(E"Iteration",E"(item, state) = next(iter, state)",E"(item, state) = next(iter, state)
+(E"Iteration",E"next",E"next(iter, state) -> item, state
 
    For a given iterable object and iteration state, return the current
    item and the next iteration state
@@ -1618,31 +1618,31 @@ collection[key...] = value
 
 "),
 
-(E"Linear Algebra",E"R = chol(A)",E"R = chol(A)
+(E"Linear Algebra",E"chol",E"chol(A)
 
    Compute Cholesky factorization
 
 "),
 
-(E"Linear Algebra",E"(L, U, p) = lu(A)",E"(L, U, p) = lu(A)
+(E"Linear Algebra",E"lu",E"lu(A) -> L, U, p
 
    Compute LU factorization
 
 "),
 
-(E"Linear Algebra",E"(Q, R, p) = qr(A)",E"(Q, R, p) = qr(A)
+(E"Linear Algebra",E"qr",E"qr(A) -> Q, R, p
 
    Compute QR factorization
 
 "),
 
-(E"Linear Algebra",E"(D, V) = eig(A)",E"(D, V) = eig(A)
+(E"Linear Algebra",E"eig",E"eig(A) -> D, V
 
    Compute eigenvalues and eigenvectors of A
 
 "),
 
-(E"Linear Algebra",E"(U, S, V) = svd(A)",E"(U, S, V) = svd(A)
+(E"Linear Algebra",E"svd",E"svd(A) -> U, S, V
 
    Compute the SVD of A
 
@@ -1764,7 +1764,7 @@ collection[key...] = value
 
 "),
 
-(E"Combinatorics",E"(s,p) = sortperm(v)",E"(s,p) = sortperm(v)
+(E"Combinatorics",E"sortperm",E"sortperm(v) -> s,p
 
    Sort a vector in ascending order, also constructing the permutation
    that sorts the vector
