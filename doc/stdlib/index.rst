@@ -1,9 +1,12 @@
 
-.. _base-index:
+.. _stdlib-index:
 
-###########
- Built-ins
-###########
+############################
+ The Julia Standard Library
+############################
+
+:Release: |version|
+:Date: |today|
 
 Contents:
 

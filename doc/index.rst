@@ -1,16 +1,7 @@
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%
- The Julia Standard Library
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-A test of using Sphinx_ to document Julia_.
-
-.. _Sphinx: http://sphinx.pocoo.org/
-.. _Julia: http://julialang.org/
-
-.. note::
-
-   This is not the official documentation! This is just a test.
+%%%%%%%%%%%%%%%%%%%%%
+ Julia Documentation
+%%%%%%%%%%%%%%%%%%%%%
 
 Contents:
 
