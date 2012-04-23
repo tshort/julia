@@ -19,14 +19,6 @@ class JuliaHelpTranslator(TextTranslator):
             etext = jl_escape(text) if escape else text
             self.states[-1].append((-1, etext))
 
-    def visit_document(self, node):
-        TextTranslator.visit_document(self, node)
-        self.add_text('function _jl_help_db() return [\n', escape=False, force=True)
-
-    def depart_document(self, node):
-        self.add_text('\n] end\n', escape=False, force=True)
-        TextTranslator.depart_document(self, node)
-
     def visit_title(self, node):
         if self.sectionlevel == 1:
             self._current_title = node.astext()
@@ -52,7 +44,10 @@ class JuliaHelpWriter(TextWriter):
     def translate(self):
         visitor = JuliaHelpTranslator(self.document, self.builder)
         self.document.walkabout(visitor)
-        self.output = visitor.body
+        self.output = '# automatically generated -- do not edit\n\n' \
+            + 'function _jl_help_db() return [\n\n' \
+            + visitor.body \
+            + '\n] end\n'
 
 class JuliaHelpBuilder(TextBuilder):
     name = "jlhelp"

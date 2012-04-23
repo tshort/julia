@@ -1,3 +1,5 @@
+# automatically generated -- do not edit
+
 function _jl_help_db() return [
 
 (E"Getting Around",E"exit",E"exit([code])
@@ -2350,4 +2352,4 @@ collection[key...] = value
 
 "),
 
- ] end
+] end
