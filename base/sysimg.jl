@@ -76,7 +76,7 @@ include("random.jl")
 
 # distributed arrays and memory-mapped arrays
 include("darray.jl")
-include("mmaparray.jl")
+include("mmap.jl")
 
 # utilities - version, timing, help, edit
 include("version.jl")
@@ -87,6 +87,7 @@ include("datafmt.jl")
 
 # linear algebra
 include("linalg.jl")
+include("linalg_dense.jl")
 include("linalg_blas.jl")
 include("linalg_lapack.jl")
 
