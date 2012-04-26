@@ -166,7 +166,7 @@ The ``state`` object may be anything, and should be chosen appropriately for eac
 
    For a given iterable object and iteration state, return the current item and the next iteration state
 
-Fully implemented by: ``Range``, ``Range1``, ``NDRange``, ``Tuple``, ``Real``, ``AbstractArray``, ``IntSet``, ``IdTable``, ``HashTable``, ``WeakKeyHashTable``, ``LineIterator``, ``String``, ``Set``, ``Task``.
+Fully implemented by: ``Range``, ``Range1``, ``NDRange``, ``Tuple``, ``Real``, ``AbstractArray``, ``IntSet``, ``ObjectIdDict``, ``Dict``, ``WeakKeyDict``, ``LineIterator``, ``String``, ``Set``, ``Task``.
 
 General Collections
 -------------------
@@ -183,7 +183,7 @@ General Collections
 
    For ordered, indexable collections, the maximum index ``i`` for which ``ref(collection, i)`` is valid.
 
-Fully implemented by: ``Range``, ``Range1``, ``Tuple``, ``Number``, ``AbstractArray``, ``IntSet``, ``HashTable``, ``WeakKeyHashTable``, ``String``, ``Set``.
+Fully implemented by: ``Range``, ``Range1``, ``Tuple``, ``Number``, ``AbstractArray``, ``IntSet``, ``Dict``, ``WeakKeyDict``, ``String``, ``Set``.
 
 Partially implemented by: ``FDSet``.
 
@@ -255,20 +255,20 @@ Indexable Collections
 
    Store the given value at the given key or index within a collection.
 
-Fully implemented by: ``Array``, ``DArray``, ``AbstractArray``, ``SubArray``, ``IdTable``, ``HashTable``, ``WeakKeyHashTable``, ``String``.
+Fully implemented by: ``Array``, ``DArray``, ``AbstractArray``, ``SubArray``, ``ObjectIdDict``, ``Dict``, ``WeakKeyDict``, ``String``.
 
 Partially implemented by: ``Range``, ``Range1``, ``Tuple``.
 
 Associative Collections
 -----------------------
 
-``HashTable`` is the standard associative collection. Its implementation uses the ``hash(x)`` as the hashing function for the key, and ``isequal(x,y)`` to determine equality. Define these two functions for custom types to override how they are stored in a hash table.
+``Dict`` is the standard associative collection. Its implementation uses the ``hash(x)`` as the hashing function for the key, and ``isequal(x,y)`` to determine equality. Define these two functions for custom types to override how they are stored in a hash table.
 
-``IdTable`` is a special hash table where the keys are always object identities. ``WeakKeyHashTable`` is a hash table implementation where the keys are weak references to objects, and thus maybe garbage collected even when referenced in a hash table.
+``ObjectIdDict`` is a special hash table where the keys are always object identities. ``WeakKeyDict`` is a hash table implementation where the keys are weak references to objects, and thus maybe garbage collected even when referenced in a hash table.
 
-HashTables can be created using a literal syntax: ``{"A"=>1, "B"=>2}``
+Dicts can be created using a literal syntax: ``{"A"=>1, "B"=>2}``
 
-.. function:: HashTable{K,V}(n)
+.. function:: Dict{K,V}(n)
 
    Construct a hashtable with keys of type K and values of type V and intial size of n
 
@@ -288,7 +288,7 @@ HashTables can be created using a literal syntax: ``{"A"=>1, "B"=>2}``
 
    Delete all keys from a collection.
 
-Fully implemented by: ``IdTable``, ``HashTable``, ``WeakKeyHashTable``.
+Fully implemented by: ``ObjectIdDict``, ``Dict``, ``WeakKeyDict``.
 
 Partially implemented by: ``IntSet``, ``Set``, ``EnvHash``, ``FDSet``, ``Array``.
 

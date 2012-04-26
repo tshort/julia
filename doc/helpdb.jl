@@ -362,7 +362,7 @@ collection[key...] = value
 
 "),
 
-(E"Associative Collections",E"HashTable{K,V}(n)",E"HashTable{K,V}(n)
+(E"Associative Collections",E"Dict{K,V}(n)",E"Dict{K,V}(n)
 
    Construct a hashtable with keys of type K and values of type V and
    intial size of n
