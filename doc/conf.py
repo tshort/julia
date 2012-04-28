@@ -185,7 +185,9 @@ latex_elements = {
     'inputenc': r'''
         \usepackage{ucs}
         \usepackage[utf8x]{inputenc}''',
-    'utf8extra': '',
+    'utf8extra': r''',
+        \DeclareUnicodeCharacter{27FA}{\Longleftrightarrow}
+    ''',
 }
 
 # Grouping the document tree into LaTeX files. List of tuples
