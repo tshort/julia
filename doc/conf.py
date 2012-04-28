@@ -182,10 +182,9 @@ latex_elements = {
 # Additional stuff for the LaTeX preamble.
 #'preamble': '',
 
-    'inputenc': r'''
-        \usepackage{ucs}
-        \usepackage[utf8x]{inputenc}''',
     'utf8extra': r''',
+        \DeclareUnicodeCharacter{2203}{\ensuremath{\exists}}
+        \DeclareUnicodeCharacter{2200}{\ensuremath{\forall}}
         \DeclareUnicodeCharacter{27FA}{\Longleftrightarrow}
     ''',
 }
