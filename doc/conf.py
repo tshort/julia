@@ -181,6 +181,11 @@ latex_elements = {
 
 # Additional stuff for the LaTeX preamble.
 #'preamble': '',
+
+    'inputenc': r'''
+        \usepackage{ucs}
+        \usepackage[utf8x]{inputenc}''',
+    'utf8extra': '',
 }
 
 # Grouping the document tree into LaTeX files. List of tuples
