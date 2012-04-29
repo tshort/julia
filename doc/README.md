@@ -9,10 +9,18 @@ chapter of the Python Developer's Guide.
 Building the documentation
 --------------------------
 
-The documentation is built using [Sphinx](http://sphinx.pocoo.org/).
+The documentation is built using [Sphinx](http://sphinx.pocoo.org/) and LaTeX.
+On ubuntu, you'll need the following packages installed:
+
+    python-sphinx
+    texlive
+    texlive-latex-extra
+
+Then run
 
     $ make helpdb.jl
     $ make html
+    $ make latexpdf
 
 
 File layout
