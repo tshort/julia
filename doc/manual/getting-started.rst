@@ -92,8 +92,7 @@ those available for the ``perl`` and ``ruby`` programs:
 Example Code
 ------------
 
-At this point it is useful to take a look at some `Example
-Programs <../example-programs>`_.
+At this point it is useful to take a look at some :ref:`man-example-programs`.
 
 Major Differences From MATLAB®
 ------------------------------

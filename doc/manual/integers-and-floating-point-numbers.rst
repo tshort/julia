@@ -29,7 +29,7 @@ them. The following are Julia's primitive numeric types:
       numerically to 1 and 0.
    -  ``Char`` — a 32-bit numeric type representing a `Unicode
       character <http://en.wikipedia.org/wiki/Unicode>`_ (see
-      `Strings <../strings>`_ for more details).
+      :ref:`man-strings` for more details).
 
 -  **Floating-point types:**
 
@@ -38,12 +38,10 @@ them. The following are Julia's primitive numeric types:
    -  ``Float64`` — `IEEE 754 64-bit floating-point
       numbers <http://en.wikipedia.org/wiki/Double_precision_floating-point_format>`_.
 
-Additionally, full support for `complex and rational
-numbers <../complex-and-rational-numbers>`_ is built on top of these
+Additionally, full support for :ref:`man-complex-and-rational-numbers` is built on top of these
 primitive numeric types. All numeric types interoperate naturally
 without explicit casting, thanks to a flexible type promotion system.
-Moreover, this promotion system, detailed in `Conversion and
-Promotion <../conversion-and-promotion>`_, is user-extensible, so
+Moreover, this promotion system, detailed in :ref:`man-conversion-and-promotion`, is user-extensible, so
 user-defined numeric types can be made to interoperate just as naturally
 as built-in types.
 
@@ -168,7 +166,7 @@ The values returned by ``typemin`` and ``typemax`` are always of the
 given argument type. The above expression uses several features we have
 yet to introduce, including `for
 loops <../control-flow#Repeated+Evaluation:+Loops>`_,
-`strings <../strings>`_, and `string
+:ref:`man-strings`, and `string
 interpolation <../strings#Interpolation>`_, but should be easy enough to
 understand for people with some programming experience.
 
@@ -393,7 +391,7 @@ imply multiplication:
 Both of these expressions are interpreted as function application: any
 expression that is not a numeric literal, when immediately followed by a
 parenthetical, is interpreted as a function applied to the values in
-parentheses (see `Functions <../functions>`_ for more about functions).
+parentheses (see :ref:`man-functions` for more about functions).
 Thus, in both of these cases, an error occurs since the left-hand value
 is not a function.
 

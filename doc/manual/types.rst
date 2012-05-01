@@ -23,7 +23,7 @@ values are of specific types. This can be of great assistance in
 generating efficient code, but even more significantly, it allows method
 dispatch on the types of function arguments to be deeply integrated with
 the language. Method dispatch is explored in detail in
-`Methods <../methods>`_, but is rooted in the type system presented
+:ref:`man-methods`, but is rooted in the type system presented
 here.
 
 The default behavior in Julia when types are omitted is to allow values
@@ -167,8 +167,7 @@ even though they have no instantiation because they are the backbone of
 the type system: they form the conceptual hierarchy which makes Julia's
 type system more than just a collection of object implementations.
 
-Recall that in `Integers and Floating-Point
-Numbers <../integers-and-floating-point-numbers>`_, we introduced a
+Recall that in :ref:`man-integers-and-floating-point-numbers`, we introduced a
 variety of concrete types of numeric values: ``Int8``, ``Uint8``,
 ``Int16``, ``Uint16``, ``Int32``, ``Uint32``, ``Int64``, ``Uint64``,
 ``Float32``, and ``Float64``. These are all `bits types <#Bits+Types>`_,
@@ -328,7 +327,7 @@ Python and Ruby, but functions are not bundled with the objects they
 operate on. This is necessary since Julia chooses which method of a
 function to use by multiple dispatch, meaning that the types of *all* of
 a function's arguments are considered when selecting a method, rather
-than just the first one (see `Methods <../methods>`_ for more
+than just the first one (see :ref:`man-methods` for more
 information on methods and dispatch). Thus, it would be inappropriate
 for functions to "belong" to only their first argument. Organizing
 methods by association with function objects rather than simply having
@@ -413,9 +412,9 @@ The ``is`` function confirms that the "two" constructed instances of
 
 There is much more to say about how instances of composite types are
 created, but that discussion depends on both `Parametric
-Types <#Parametric+Types>`_ and on `Methods <../methods>`_, and is
+Types <#Parametric+Types>`_ and on :ref:`man-methods`, and is
 sufficiently important to be addressed in its own section:
-`Constructors <../constructors>`_.
+:ref:`man-constructors`.
 
 Type Unions
 -----------
@@ -554,7 +553,7 @@ unlimited number of types: ``Point{Float64}``, ``Point{String}``,
 
 The type ``Point{Float64}`` is a point whose coordinates are 64-bit
 floating-point values, while the type ``Point{String}`` is a "point"
-whose "coordinates" are string objects (see `Strings <../strings>`_).
+whose "coordinates" are string objects (see :ref:`man-strings`).
 However, ``Point`` itself is also a valid type object:
 
 ::
@@ -627,7 +626,7 @@ complex objects, which are declared to be implementations of the
 
 How does one construct a ``Point`` object? It is possible to define
 custom constructors for composite types, which will be discussed in
-detail in `Constructors <../constructors>`_, but in the absence of any
+detail in :ref:`man-constructors`, but in the absence of any
 special constructor declarations, there are two default ways of creating
 new composite objects, one in which the type parameters are explicitly
 given and the other in which they are implied by the arguments to the
@@ -691,7 +690,7 @@ isn't the case, the constructor will fail with a no method error:
 
 Constructor methods to appropriately handle such mixed cases can be
 defined, but that will not be discussed until later on in
-`Constructors <../constructors>`_.
+:ref:`man-constructors`.
 
 Parametric Abstract Types
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -776,7 +775,7 @@ for every other possible choice of type ``T``. This allows programming
 to a common interface shared by all ``Pointy`` objects, implemented for
 both ``Point`` and ``DiagPoint``. This cannot be fully demonstrated,
 however, until we have introduced methods and dispatch in the next
-section, `Methods <../methods>`_.
+section, :ref:`man-methods`.
 
 There are situations where it may not make sense for type parameters to
 range freely over all possible types. In such situations, one can

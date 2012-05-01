@@ -432,7 +432,7 @@ However, other similar calls still don't work:
     no method Point(Float64,Int64)
 
 For a much more general way of making all such calls work sensibly, see
-`Conversion and Promotion <../conversion-and-promotion>`_. At the risk
+:ref:`man-conversion-and-promotion`. At the risk
 of spoiling the suspense, we can reveal here that the all it takes is
 the following outer method definition to make all calls to the general
 ``Point`` constructor work as one would expect:

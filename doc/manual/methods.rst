@@ -4,7 +4,7 @@
  Methods  
 *********
 
-Recall from `Functions <../functions>`_ that a function is an object
+Recall from :ref:`man-functions` that a function is an object
 that maps a tuple of arguments to a return value, or throws an exception
 if no appropriate value can be returned. It is very common for the same
 conceptual function or operation to be implemented quite differently for
@@ -165,8 +165,7 @@ called and the more general ``f(Number,Number)`` method must be used:
 The ``2x + y`` definition is only used in the first case, while the
 ``2x - y`` definition is used in the others. No automatic casting or
 conversion of function arguments is ever performed: all conversion in
-Julia is non-magical and completely explicit. `Conversion and
-Promotion <../conversion-and-promotion>`_, however, shows how clever
+Julia is non-magical and completely explicit. :ref:`man-conversion-and-promotion`, however, shows how clever
 application of sufficiently advanced technology can be indistinguishable
 from magic.
 

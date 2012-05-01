@@ -6,7 +6,7 @@
 
 Julia ships with predefined types representing both complex and rational
 numbers, and supports all the mathematical operations discussed in
-`Mathematical Operations <../mathematical-operations>`_ on them.
+:ref:`man-mathematical-operations` on them.
 Promotions are defined so that operations on any combination of
 predefined numeric types, whether primitive or composite, behave as
 expected.

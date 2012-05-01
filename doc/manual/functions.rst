@@ -385,6 +385,6 @@ defining functions. Julia has a sophisticated type system and allows
 multiple dispatch on argument types. None of the examples given here
 provide any type annotations on their arguments, meaning that they are
 applicable to all types of arguments. The type system is described in
-`Types <../types>`_ and defining a function in terms of methods chosen
+:ref:`man-types` and defining a function in terms of methods chosen
 by multiple dispatch on run-time argument types is described in
-`Methods <../methods>`_.
+:ref:`man-methods`.

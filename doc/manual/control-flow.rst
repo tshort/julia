@@ -55,7 +55,7 @@ in handy:
     3
 
 This syntax is particularly useful with the terse single-line function
-definition form introduced in `Functions <../functions>`_. Although it
+definition form introduced in :ref:`man-functions`. Although it
 is typical, there is no requirement that ``begin`` blocks be multiline
 or that ``(;)`` chains be single-line:
 
@@ -272,7 +272,7 @@ precedence of various combinations of ``&&`` and ``||`` operators.
 
 If you want to perform boolean operations *without* short-circuit
 evaluation behavior, you can use the bitwise boolean operators
-introduced in `Mathematical Operations <../mathematical-operations>`_:
+introduced in :ref:`man-mathematical-operations`:
 ``&`` and ``|``. These are normal functions, which happen to support
 infix operator syntax, but always evaluate their arguments:
 
@@ -362,7 +362,7 @@ different variable name to test this:
     julia> j
     j not defined
 
-See `Variables and Scoping <../variables-and-scoping>`_ for a detailed
+See :ref:`man-variables-and-scoping` for a detailed
 explanation of variable scope and how it works in Julia.
 
 In general, the ``for`` loop construct can iterate over any container.
@@ -387,7 +387,7 @@ clearly:
     baz
 
 Various types of iterable containers will be introduced and discussed in
-later sections of the manual (see, e.g., `Arrays <../arrays>`_).
+later sections of the manual (see, e.g., :ref:`man-arrays`).
 
 It is sometimes convenient to terminate the repetition of a ``while``
 before the test condition is falsified or stop iterating in a ``for``
@@ -724,5 +724,4 @@ directly or by use of a convenience macro:
 
 ``produce`` and ``consume`` are intended for multitasking, and do not
 launch threads that can run on separate CPUs. True kernel threads are
-discussed under the topic of `parallel
-computing <../parallel-computing>`_.
+discussed under the topic of :ref:`man-parallel-computing`.

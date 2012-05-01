@@ -115,8 +115,7 @@ instead of an ``Expr``:
 
 In the context of an expression, symbols are used to indicate access to
 variables, and when an expression is evaluated, a symbol evaluates to
-the value bound to that symbol in the appropriate scope (see `Variables
-and Scoping <../variables-and-scoping>`_ for further details).
+the value bound to that symbol in the appropriate scope (see :ref:`man-variables-and-scoping` for further details).
 
 Eval and Interpolation
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -418,8 +417,7 @@ expression becomes equivalent to:
     end
 
 Declaring a local variable twice in the same scope is illegal, and since
-``begin`` blocks do *not* introduce a new scope block (see `Variables
-and Scoping <../variables-and-scoping>`_), this code is invalid. The
+``begin`` blocks do *not* introduce a new scope block (see :ref:`man-variables-and-scoping`), this code is invalid. The
 root problem is that the naïve ``@time`` macro implementation is
 unhygienic: it is possible for the interpolated code to accidentally use
 variables that clash with the variables used by the macro's code.

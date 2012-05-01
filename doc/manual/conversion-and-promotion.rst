@@ -6,10 +6,8 @@
 
 Julia has a system for promoting arguments of mathematical operators to
 a common type, which has been mentioned in various other sections,
-including `Integers and Floating-Point
-Numbers <../integers-and-floating-point-numbers>`_, `Mathematical
-Operations <../mathematical-operations>`_, `Types <../types>`_, and
-`Methods <../methods>`_. In this section, we explain how this promotion
+including :ref:`man-integers-and-floating-point-numbers`, :ref:`man-mathematical-operations`, :ref:`man-types`, and
+:ref:`man-methods`. In this section, we explain how this promotion
 system works, as well as how to extend it to new types and apply it to
 functions besides built-in mathematical operators. Traditionally,
 programming languages fall into two camps with respect to promotion of

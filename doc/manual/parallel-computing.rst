@@ -626,7 +626,6 @@ Adding Processors
 
    - Suppose you have a `d`-by-`N` matrix `X`, containing the coordinates of `N` points in `d` dimensions. You are given the function `nnx` below to compute the nearest neighbor of point indexed by `ithis`, excluding `ithis` itself. Write a function called `nearestneighbor` with the following syntax: `inn, d2nn = nearestneighbor(X)`, where `inn[i]` is the nearest-neighbor of point `i` (excluding `i` itself) and `d2nn[i]` is the square-distance between points `i` and `inn[i]`. Use a `DArray` to divide the output variables among multiple processors (do not worry about this for the input `X`). Make sure the two returned variables are ordinary vectors. [Answer](answer_nn.md)
 
-
            function nnx{T}(X::Matrix{T},ithis::Int)
                x = X[:,ithis]
                d2min::T = typemax(T)  # start with Inf (a sentinel value)
@@ -646,5 +645,4 @@ Adding Processors
                end
                imin, d2min
            end -->
-
 

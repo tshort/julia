@@ -48,7 +48,7 @@ Interpolation
 Suppose you want to do something a bit more complicated and use the name
 of a file in the variable ``file`` as an argument to a command. You can
 use ``$`` for interpolation much as you would in a string literal (see
-`Strings <../strings>`_):
+:ref:`man-strings`):
 
 ::
 

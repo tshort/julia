@@ -37,4 +37,6 @@ for name in chapters
     run(`perl -pi -e 'y/\-\+/\*/ if ( $. == 1 || $. == 3 );' $name.rst`)
     x = "print \".. _man-$name:\n\" if ( \$. == 1 )"
     run(`perl -pi -le $x $name.rst`)
+    # `Strings <../strings>`_ -> :ref:`man-strings`
+    run(`perl -00pi -e 's/\`[\s\w-]+<..\/([a-z-]+)>\`_/:ref:\`man-\1\`/g' $name.rst`)
 end

@@ -54,8 +54,7 @@ Here are some simple examples using arithmetic operators:
 tightly, but there are no syntactic constraints.)
 
 Julia's promotion system makes arithmetic operations on mixtures of
-argument types "just work" naturally and automatically. See `Conversion
-and Promotion <../conversion-and-promotion>`_ for details of the
+argument types "just work" naturally and automatically. See :ref:`man-conversion-and-promotion` for details of the
 promotion system.
 
 Here are some examples with bitwise operators:
@@ -338,5 +337,4 @@ also have updating forms. As with other operators, ``x %= y`` means
 
    - Find at least three ways to compute 2 to the power of 4. [Answer](answer_power2)
    - In addition to `isequal`, Julia contains `isless`. By experimentation, summarize the rules that `isless` follows. [Answer](answer_isless) -->
-
 
