@@ -224,8 +224,8 @@ function _jl_init_help()
     if _jl_help_categories == nothing
         println("Loading help data...")
         load("$JULIA_HOME/doc/helpdb.jl")
-        _jl_help_categories = HashTable()
-        _jl_help_functions = HashTable()
+        _jl_help_categories = Dict()
+        _jl_help_functions = Dict()
         for (cat,func,desc) in _jl_help_db()
             if !has(_jl_help_categories, cat)
                 _jl_help_categories[cat] = {}
