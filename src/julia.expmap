@@ -21,6 +21,8 @@
     jl_new_closure;
     jl_new_array;
     jl_reshape_array;
+    jl_ptr_to_array_1d;
+    jl_ptr_to_array;
     jl_alloc_array_1d;
     jl_alloc_array_2d;
     jl_alloc_array_3d;
@@ -64,6 +66,7 @@
     jl_sizeof_ios_t;
     jl_stdout_stream;
     ios_fd;
+    ios_mem;
     jl_ios_mem;
     jl_boundp;
     jl_get_root_symbol;
@@ -161,6 +164,7 @@
     jl_pgcstack;
     jl_symbol;
     jl_base_module;
+    jl_current_module;
     jl_get_global;
     jl_set_global;
     jl_set_const;

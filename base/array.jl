@@ -35,10 +35,16 @@ end
 
 copy_to{T}(dest::Array{T}, src::Array{T}) = copy_to(dest, 1, src, 1, numel(src))
 
-function reinterpret{T,S}(::Type{T}, a::Array{S})
-    b = Array(T, div(numel(a)*sizeof(S),sizeof(T)))
-    ccall(:memcpy, Ptr{T}, (Ptr{T}, Ptr{S}, Uint), b, a, length(b)*sizeof(T))
-    return b
+function reinterpret{T,S}(::Type{T}, a::Array{S,1})
+    nel = int(div(numel(a)*sizeof(S),sizeof(T)))
+    ccall(:jl_reshape_array, Array{T,1}, (Any, Any, Any), Array{T,1}, a, (nel,))
+end
+function reinterpret{T,S,N}(::Type{T}, a::Array{S}, dims::NTuple{N,Int})
+    nel = div(numel(a)*sizeof(S),sizeof(T))
+    if prod(dims) != nel
+        error("reinterpret: invalid dimensions")
+    end
+    ccall(:jl_reshape_array, Array{T,N}, (Any, Any, Any), Array{T,N}, a, dims)
 end
 reinterpret(t,x) = reinterpret(t,[x])[1]
 
@@ -46,7 +52,7 @@ function reshape{T,N}(a::Array{T}, dims::NTuple{N,Int})
     if prod(dims) != numel(a)
         error("reshape: invalid dimensions")
     end
-    ccall(:jl_reshape_array, Any, (Any, Any, Any), Array{T,N}, a, dims)::Array{T,N}
+    ccall(:jl_reshape_array, Array{T,N}, (Any, Any, Any), Array{T,N}, a, dims)
 end
 
 ## Constructors ##
@@ -192,12 +198,12 @@ let ref_cache = nothing
 global ref
 function ref(A::Array, I::Indices...)
     i = length(I)
-    while 1 > 0 && isa(I[i],Integer); i-=1; end
+    while i > 0 && isa(I[i],Integer); i-=1; end
     d = map(length, I)::Dims
     X = similar(A, d[1:i])
 
     if is(ref_cache,nothing)
-        ref_cache = HashTable()
+        ref_cache = Dict()
     end
     gen_cartesian_map(ref_cache, ivars -> quote
             X[storeind] = A[$(ivars...)]
@@ -233,13 +239,9 @@ ref(A::Matrix, I::AbstractVector{Bool}, J::AbstractVector{Bool}) = A[find(I),fin
 
 ## Indexing: assign ##
 
-assign(A::Array{Any}, x::AbstractArray, i::Int) = arrayset(A,i,x)
 assign(A::Array{Any}, x::AbstractArray, i::Integer) = arrayset(A,int(i),x)
-assign(A::Array{Any}, x::ANY, i::Int) = arrayset(A,i,x)
 assign(A::Array{Any}, x::ANY, i::Integer) = arrayset(A,int(i),x)
-assign{T}(A::Array{T}, x::AbstractArray, i::Int) = arrayset(A,i,convert(T, x))
 assign{T}(A::Array{T}, x::AbstractArray, i::Integer) = arrayset(A,int(i),convert(T, x))
-assign{T}(A::Array{T}, x, i::Int) = arrayset(A,i,convert(T, x))
 assign{T}(A::Array{T}, x, i::Integer) = arrayset(A,int(i),convert(T, x))
 assign{T}(A::Array{T,0}, x) = arrayset(A,1,convert(T, x))
 
@@ -281,8 +283,10 @@ function assign{T<:Integer}(A::Array, x, I::AbstractVector{T})
 end
 
 function assign{T<:Integer}(A::Array, X::AbstractArray, I::AbstractVector{T})
-    for i = 1:length(I)
-        A[I[i]] = X[i]
+    count = 1
+    for i in I
+        A[i] = X[count]
+        count += 1
     end
     return A
 end
@@ -350,7 +354,7 @@ let assign_cache = nothing
 global assign
 function assign(A::Array, x, I0::Indices, I::Indices...)
     if is(assign_cache,nothing)
-        assign_cache = HashTable()
+        assign_cache = Dict()
     end
     gen_cartesian_map(assign_cache, ivars->:(A[$(ivars...)] = x),
                       tuple(I0, I...),
@@ -364,7 +368,7 @@ let assign_cache = nothing
 global assign
 function assign(A::Array, X::AbstractArray, I0::Indices, I::Indices...)
     if is(assign_cache,nothing)
-        assign_cache = HashTable()
+        assign_cache = Dict()
     end
     gen_cartesian_map(assign_cache, ivars->:(A[$(ivars...)] = X[refind];
                                              refind += 1),
@@ -428,7 +432,7 @@ end
 
 function push(a::Array{Any,1}, item::ANY)
     ccall(:jl_array_grow_end, Void, (Any, Uint), a, 1)
-    a[end] = item
+    arrayset(a, length(a), item)
     return a
 end
 
@@ -918,7 +922,7 @@ function findn{T}(A::StridedArray{T})
     ranges = ntuple(ndims(A), d->(1:size(A,d)))
 
     if is(findn_cache,nothing)
-        findn_cache = HashTable()
+        findn_cache = Dict()
     end
 
     gen_cartesian_map(findn_cache, findn_one, ranges,
@@ -1015,7 +1019,7 @@ function areduce(f::Function, A::StridedArray, region::Region, v0, RType::Type)
     R = similar(A, RType, dimsR)
 
     if is(areduce_cache,nothing)
-        areduce_cache = HashTable()
+        areduce_cache = Dict()
     end
 
     key = ndimsA
@@ -1168,7 +1172,9 @@ end
 
 function map(f, A::StridedArray, B::StridedArray)
     shp = promote_shape(size(A),size(B))
-    if isempty(A); return A; end
+    if isempty(A)
+        return similar(A, eltype(A), shp)
+    end
     first = f(A[1], B[1])
     dest = similar(A, typeof(first), shp)
     return map_to2(first, dest, f, A, B)
@@ -1238,9 +1244,12 @@ function map_to2(first, dest::StridedArray, f, As::StridedArray...)
 end
 
 function map(f, As::StridedArray...)
-    if isempty(As[1]); return As[1]; end
+    shape = mapreduce(promote_shape, size, As)
+    if prod(shape) == 0
+        return similar(As[1], eltype(As[1]), shape)
+    end
     first = f(map(a->a[1], As)...)
-    dest = similar(As[1], typeof(first))
+    dest = similar(As[1], typeof(first), shape)
     return map_to2(first, dest, f, As...)
 end
 
@@ -1332,7 +1341,7 @@ function permute(A::StridedArray, perm)
     end
 
     if is(permute_cache,nothing)
-	permute_cache = HashTable()
+	permute_cache = Dict()
     end
 
     gen_cartesian_map(permute_cache, permute_one, ranges,

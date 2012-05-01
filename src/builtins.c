@@ -471,8 +471,8 @@ char *jl_find_file_in_path(const char *fname)
     int fid = open (fpath, O_RDONLY);
     // try adding julia home
     if (fid == -1 && julia_home && fname[0] != '/') {
-        asprintf(&fpath, "%s/%s", julia_home, fname);
-        fid = open (fpath, O_RDONLY);
+        if (-1 != asprintf(&fpath, "%s/%s", julia_home, fname))
+            fid = open (fpath, O_RDONLY);
     }
     if (fid == -1) {
         if (fpath != fname) free(fpath);
@@ -1017,21 +1017,6 @@ JL_CALLABLE(jl_f_new_bits_type)
 
 extern int jl_boot_file_loaded;
 
-JL_CALLABLE(jl_f_def_macro)
-{
-    jl_sym_t *nm = (jl_sym_t*)args[0];
-    assert(jl_is_symbol(nm));
-    jl_function_t *f = (jl_function_t*)args[1];
-    assert(jl_is_function(f));
-    if (jl_boot_file_loaded &&
-        f->linfo && f->linfo->ast && jl_is_expr(f->linfo->ast)) {
-        jl_lambda_info_t *li = f->linfo;
-        li->ast = jl_compress_ast(li, li->ast);
-    }
-    jl_set_expander(jl_current_module, nm, f);
-    return (jl_value_t*)jl_nothing;
-}
-
 JL_CALLABLE(jl_f_typevar)
 {
     if (nargs < 1 || nargs > 3) {
@@ -1040,6 +1025,11 @@ JL_CALLABLE(jl_f_typevar)
     JL_TYPECHK(typevar, symbol, args[0]);
     jl_value_t *lb = (jl_value_t*)jl_bottom_type;
     jl_value_t *ub = (jl_value_t*)jl_any_type;
+    int b = 0;
+    if (args[nargs-1] == jl_true) {
+        b = 1;
+        nargs--;
+    }
     if (nargs > 1) {
         JL_TYPECHK(typevar, type, args[1]);
         if (nargs > 2) {
@@ -1051,7 +1041,9 @@ JL_CALLABLE(jl_f_typevar)
             ub = args[1];
         }
     }
-    return (jl_value_t*)jl_new_typevar((jl_sym_t*)args[0], lb, ub);
+    jl_tvar_t *tv = jl_new_typevar((jl_sym_t*)args[0], lb, ub);
+    tv->bound = b;
+    return (jl_value_t*)tv;
 }
 
 JL_CALLABLE(jl_f_union)
@@ -1118,7 +1110,7 @@ JL_CALLABLE(jl_f_methodexists)
     check_type_tuple((jl_tuple_t*)args[1], jl_gf_name(args[0]),
                      "method_exists");
     return jl_method_lookup_by_type(jl_gf_mtable(args[0]),
-                                    (jl_tuple_t*)args[1], 0) ?
+                                    (jl_tuple_t*)args[1], 0) != jl_bottom_func ?
         jl_true : jl_false;
 }
 
@@ -1128,7 +1120,8 @@ JL_CALLABLE(jl_f_applicable)
     JL_TYPECHK(applicable, function, args[0]);
     if (!jl_is_gf(args[0]))
         jl_error("applicable: not a generic function");
-    return jl_method_lookup(jl_gf_mtable(args[0]), &args[1], nargs-1, 0) ?
+    return jl_method_lookup(jl_gf_mtable(args[0]),
+                            &args[1], nargs-1, 0) != jl_bottom_func ?
         jl_true : jl_false;
 }
 
@@ -1216,7 +1209,6 @@ void jl_init_primitives(void)
     add_builtin_func("new_tag_type", jl_f_new_tag_type);
     add_builtin_func("new_tag_type_super", jl_f_new_tag_type_super);
     add_builtin_func("new_bits_type", jl_f_new_bits_type);
-    add_builtin_func("def_macro", jl_f_def_macro);
 
     // builtin types
     add_builtin("Any", (jl_value_t*)jl_any_type);

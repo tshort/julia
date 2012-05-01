@@ -9,15 +9,15 @@ b = a+a
 @assert length((1,)) == 1
 @assert length((1,2)) == 2
 
-@assert 1+[1,2,3] == [2,3,4]
-@assert [1,2,3]+1 == [2,3,4]
-@assert 1-[1,2,3] == [0,-1,-2]
-@assert [1,2,3]-1 == [0,1,2]
+@assert isequal(1+[1,2,3], [2,3,4])
+@assert isequal([1,2,3]+1, [2,3,4])
+@assert isequal(1-[1,2,3], [0,-1,-2])
+@assert isequal([1,2,3]-1, [0,1,2])
 
-@assert 5*[1,2,3] == [5,10,15]
-@assert [1,2,3]*5 == [5,10,15]
-@assert 1/[1,2,5] == [1.0,0.5,0.2]
-@assert [1,2,3]/5 == [0.2,0.4,0.6]
+@assert isequal(5*[1,2,3], [5,10,15])
+@assert isequal([1,2,3]*5, [5,10,15])
+@assert isequal(1/[1,2,5], [1.0,0.5,0.2])
+@assert isequal([1,2,3]/5, [0.2,0.4,0.6])
 
 a = ones(2,2)
 a[1,1] = 1
@@ -50,6 +50,19 @@ a = reshape(b, (2, 2, 2, 2, 2))
 @assert a[2,1,2,2,1] == b[14]
 @assert a[2,2,2,2,2] == b[end]
 
+sz = (5,8,7)
+A = reshape(1:prod(sz),sz...)
+tmp = A[1:3,2,2:4]
+@assert all(tmp == cat(3,46:48,86:88,126:128))
+tmp = A[:,7:-3:1,5]
+@assert all(tmp == [191 176 161; 192 177 162; 193 178 163; 194 179 164; 195 180 165])
+tmp = A[:,3:9]
+@assert all(tmp == reshape(11:45,5,7))
+rng = (2,2:3,2:2:5)
+tmp = zeros(Int,map(max,rng)...)
+tmp[rng...] = A[rng...]
+@assert  all(tmp == cat(3,zeros(Int,2,3),[0 0 0; 0 47 52],zeros(Int,2,3),[0 0 0; 0 127 132]))
+
 ## arrays as dequeues
 l = {1,2,3}
 push(l,8)
@@ -61,8 +74,8 @@ v = pop(l)
 @assert length(l)==2
 
 # concatenation
-@assert [ones(2,2)  2*ones(2,1)] == [1 1 2; 1 1 2]
-@assert [ones(2,2), 2*ones(1,2)] == [1 1; 1 1; 2 2]
+@assert isequal([ones(2,2)  2*ones(2,1)], [1 1 2; 1 1 2])
+@assert isequal([ones(2,2), 2*ones(1,2)], [1 1; 1 1; 2 2])
 
 # "end"
 X = [ i+2j | i=1:5, j=1:5 ]
@@ -135,7 +148,7 @@ for i=1:16
     z[i] = i
 end
 
-@assert sum(z) == sum(z,(1,2,3,4)) == 136
+@assert sum(z) == sum(z,(1,2,3,4))[1] == 136
 
 v = cell(2,2,1,1)
 v[1,1,1,1] = 28.0

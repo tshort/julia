@@ -5,16 +5,13 @@
 (define (lam:vinfo x) (caddr x))
 (define (lam:body x) (cadddr x))
 
-; convert x => (x), (tuple x y) => (x y)
-; used to normalize function signatures like "x->y" and "function +(a,b)"
-(define (fsig-to-lambda-list arglist)
-  (if (pair? arglist)
-      (if (eq? (car arglist) 'tuple)
-	  (cdr arglist)
-	  arglist)
-      (if (symbol? arglist)
-	  (list arglist)
-	  arglist)))
+;; allow (:: T) => (:: #gensym T) in formal argument lists
+(define (fix-arglist l)
+  (map (lambda (a)
+	 (if (and (pair? a) (eq? (car a) '|::|) (null? (cddr a)))
+	     `(|::| ,(gensy) ,(cadr a))
+	     a))
+       l))
 
 (define (arg-name v)
   (cond ((and (symbol? v) (not (eq? v 'true)) (not (eq? v 'false)))
@@ -204,10 +201,11 @@
     `(lambda ,argl
        (scope-block ,body))))
 
-(define (symbols->typevars sl upperbounds)
-  (if (null? upperbounds)
-      (map (lambda (x)    `(call (top typevar) ',x)) sl)
-      (map (lambda (x ub) `(call (top typevar) ',x ,ub)) sl upperbounds)))
+(define (symbols->typevars sl upperbounds bnd)
+  (let ((bnd (if bnd '(true) '())))
+    (if (null? upperbounds)
+	(map (lambda (x)    `(call (top typevar) ',x ,@bnd)) sl)
+	(map (lambda (x ub) `(call (top typevar) ',x ,ub ,@bnd)) sl upperbounds))))
 
 (define (sparam-name-bounds sparams names bounds)
   (cond ((null? sparams)
@@ -227,8 +225,7 @@
 (define (method-def-expr name sparams argl body)
   (if (not (symbol? name))
       (error (string "invalid method name " name)))
-  (let* ((argl  (fsig-to-lambda-list argl))
-	 (types (llist-types argl))
+  (let* ((types (llist-types argl))
 	 (body  (method-lambda-expr argl body)))
     (if (null? sparams)
 	`(method ,name (tuple ,@types) ,body (tuple))
@@ -237,7 +234,7 @@
 	 (let ((f (gensy)))
 	   `(call (lambda (,@names ,f)
 		    (method ,name (tuple ,@types) ,f (tuple ,@names)))
-		  ,@(symbols->typevars names bounds)
+		  ,@(symbols->typevars names bounds #t)
 		  ,body))))))
 
 (define (struct-def-expr name params super fields)
@@ -368,7 +365,7 @@
 	       (call (top new_struct_fields)
 		     ,name ,super (tuple ,@field-types))
 	       ,name)))
-	    ,@(symbols->typevars params bounds)))
+	    ,@(symbols->typevars params bounds #f)))
 	   ,@(if (null? defs)
 		 `(,(default-outer-ctor name field-names field-types
 		      params bounds))
@@ -392,7 +389,7 @@
 		      (quote ,name) (tuple ,@params)))
 	     (call (top new_tag_type_super) ,name ,super)
 	     ,name)))
-	 ,@(symbols->typevars params bounds)))
+	 ,@(symbols->typevars params bounds #f)))
      (null))))
 
 (define (bits-def-expr n name params super)
@@ -412,7 +409,7 @@
 		      (quote ,name) (tuple ,@params) ,n))
 	     (call (top new_tag_type_super) ,name ,super)
 	     ,name)))
-	 ,@(symbols->typevars params bounds)))
+	 ,@(symbols->typevars params bounds #f)))
      (null))))
 
 ; take apart a type signature, e.g. T{X} <: S{Y}
@@ -484,11 +481,11 @@
   (pattern-set
    ;; function with static parameters
    (pattern-lambda (function (call (curly name . sparams) . argl) body)
-		   (method-def-expr name sparams argl body))
+		   (method-def-expr name sparams (fix-arglist argl) body))
 
    ;; function definition
    (pattern-lambda (function (call name . argl) body)
-		   (method-def-expr name '() argl body))
+		   (method-def-expr name '() (fix-arglist argl) body))
 
    (pattern-lambda (function (tuple . args) body)
 		   `(-> (tuple ,@args) ,body))
@@ -505,7 +502,7 @@
 				     (eq? (car a) 'tuple))
 				(cdr a)
 				(list a))))
-		     (function-expr a
+		     (function-expr (fix-arglist a)
 				    `(block
 				      ,@(map (lambda (d)
 					       `(= ,(cadr d)
@@ -561,8 +558,8 @@
 
    ;; macro definition
    (pattern-lambda (macro (call name . argl) body)
-		   `(call (top def_macro) (quote ,name)
-			  (-> (tuple ,@argl) ,body)))
+		   `(macro ,name
+		      (-> (tuple ,@argl) ,body)))
 
    ;; type definition
    (pattern-lambda (type sig (block . fields))
@@ -687,7 +684,7 @@
 			     (const
 			      (= ,name (call (top new_type_constructor)
 					     (tuple ,@params) ,type-ex))))
-			   ,@(symbols->typevars params bounds))))
+			   ,@(symbols->typevars params bounds #f))))
 
    (pattern-lambda (comparison . chain) (expand-compare-chain chain))
 
@@ -780,8 +777,8 @@
 			  (if (not (every (lambda (e) (and (length= e 3)
 							   (eq? (car e) '=>)))
 					  args))
-			      (error "invalid hash table literal")
-			      `(call (top hashtable)
+			      (error "invalid dict literal")
+			      `(call (top dict)
 				     (tuple ,@(map cadr  args))
 				     (tuple ,@(map caddr args)))))
 			 ((any (lambda (e) (and (pair? e) (eq? (car e) '...)))
@@ -835,6 +832,10 @@
    (pattern-lambda (|::| (-- expr (-^ (-s))) T)
 		   `(call (top typeassert) ,expr ,T))
 
+   ;; ::T outside arg list syntax error
+   (pattern-lambda (|::| _)
+		   (error "invalid :: syntax"))
+
    ;; constant definition
    (pattern-lambda (const (= lhs rhs))
 		   `(block (const ,(const-check-symbol (decl-var lhs)))
@@ -862,10 +863,8 @@
    ;; for loops
 
    (pattern-lambda
-    (for (= var (: a b)) body)
+    (for (= lhs (: a b)) body)
     (begin
-      (if (not (symbol? var))
-	  (error "invalid for loop syntax: expected symbol"))
       (let ((cnt (gensy))
 	    (lim (if (number? b) b (gensy))))
 	`(scope-block
@@ -875,7 +874,7 @@
 	   (break-block loop-exit
 			(_while (call <= ,cnt ,lim)
 				(block
-				 (= ,var ,cnt)
+				 (= ,lhs ,cnt)
 				 (break-block loop-cont
 					      ,body)
 				 (= ,cnt (call (top convert)
@@ -884,7 +883,7 @@
 
    ; for loop over arbitrary vectors
    (pattern-lambda
-    (for (= i X) body)
+    (for (= lhs X) body)
     (let ((coll  (gensy))
 	  (state (gensy)))
       `(scope-block
@@ -892,7 +891,7 @@
 	       (= ,state (call (top start) ,coll))
 	       (while (call (top !) (call (top done) ,coll ,state))
 		      (block
-		       (= (tuple ,i ,state) (call (top next) ,coll ,state))
+		       (= (tuple ,lhs ,state) (call (top next) ,coll ,state))
 		       ,body))))))
 
    ; update operators
@@ -933,7 +932,19 @@
 		   `(call (top hcat) ,@a))
 
    (pattern-lambda (vcat . a)
-		   `(call (top vcat) ,@a))
+		   (if (any (lambda (x)
+			      (and (pair? x) (eq? (car x) 'row)))
+			    a)
+		       ;; convert nested hcat inside vcat to hvcat
+		       (let ((rows (map (lambda (x)
+					  (if (and (pair? x) (eq? (car x) 'row))
+					      (cdr x)
+					      (list x)))
+					a)))
+			 `(call (top hvcat)
+				(tuple ,@(map length rows))
+				,@(apply nconc rows)))
+		       `(call (top vcat) ,@a)))
 
    ;; transpose operator
    (pattern-lambda (|'| a) `(call ctranspose ,a))
@@ -1081,13 +1092,20 @@
 	    `(for ,(car ranges)
 		  ,(construct-loops (cdr ranges)))))
 
+      (define (lhs-vars e)
+	(cond ((symbol? e) (list e))
+	      ((and (pair? e) (eq? (car e) 'tuple))
+	       (apply append (map lhs-vars (cdr e))))
+	      (else '())))
+
       ;; Evaluate the comprehension
       (let ((loopranges
 	     (map (lambda (r v) `(= ,(cadr r) ,v)) ranges rv)))
 	`(scope-block
 	  (block
 	   (local ,oneresult)
-	   ,@(map (lambda (r) `(local ,(cadr r))) ranges)
+	   ,@(map (lambda (r) `(local ,r))
+		  (apply append (map (lambda (r) (lhs-vars (cadr r))) ranges)))
 	   ,@(map (lambda (v r) `(= ,v ,(caddr r))) rv ranges)
 	   ;; the evaluate-one code is used by type inference but does not run
 	   (if (call (top !) true) ,(evaluate-one loopranges))
@@ -1839,8 +1857,8 @@ So far only the second case can actually occur.
 	   (if (null? p)
 	       (let ((forms (reverse q)))
 		 `(call (top expr) ,(expand-backquote (car e))
-			(call (top append) ,@forms)))
-	       ; look for splice inside backquote, e.g. (a,$(x...),b)
+			(call (top append_any) ,@forms)))
+	       ;; look for splice inside backquote, e.g. (a,$(x...),b)
 	       (if (match '($ (tuple (... x))) (car p))
 		   (loop (cdr p)
 			 (cons (cadr (cadadr (car p))) q))

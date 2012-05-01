@@ -40,7 +40,7 @@ First, acquire the source code by cloning the git repository:
 
     git clone git://github.com/JuliaLang/julia.git
 
-Next, enter the `julia/` directory and run `make` to build the `julia` executable. To perform a parallel build, use `make PARALLEL_BUILD_JOBS=` and supply the maximum number of concurrent processes; Julia does not support using the `-j` switch to `make`.
+Next, enter the `julia/` directory and run `make` to build the `julia` executable. To perform a parallel build, use `make -j N` and supply the maximum number of concurrent processes.
 When compiled the first time, it will automatically download and build its [external dependencies](#Required-Build-Tools-External-Libraries).
 This takes a while, but only has to be done once.
 
@@ -60,11 +60,9 @@ You can read about [getting started](http://julialang.org/manual/getting-started
 <a name="Platform-Specific-Notes"/>
 ### Platform-Specific Notes
 
-On some Linux distributions (for instance Ubuntu 11.10) you may need to change how the readline library is linked. If you get a build error involving readline, try changing the value of `USE_SYSTEM_READLINE` in `Make.inc` to `1`.
+On some Linux distributions you may need to change how the readline library is linked. If you get a build error involving readline, try changing the value of `USE_SYSTEM_READLINE` in `Make.inc` to `1`.
 
 On Ubuntu, you may also need to install the package `libncurses5-dev`.
-
-If OpenBLAS fails to build in `getarch_2nd.c`, you need to specify the architecture of your processor in Make.inc.
 
 On OS X, you may need to install `gfortran`. Either download and install [gfortran from hpc.sf.net](http://hpc.sf.net/), or [64-bit gfortran from gcc.gnu.org](http://gcc.gnu.org/wiki/GFortranBinaries).
 
@@ -105,19 +103,20 @@ With the exception of `gfortran`, these are standard on most Linux systems and o
 Julia uses the following external libraries, which are automatically downloaded (or in a few cases, included in the Julia source repository) and then compiled from source the first time you run `make`:
 
 - **[LLVM]**                — compiler infrastructure. Currently, julia requires LLVM 3.0.
-- **[FemtoLisp]**           — Packaged with julia source, and used to implement the compiler front-end.
+- **[FemtoLisp]**           — packaged with julia source, and used to implement the compiler front-end.
 - **[GNU readline]**        — library allowing shell-like line editing in the terminal, with history and familiar key bindings.
 - **[fdlibm]**              — a portable implementation of much of the system-dependent libm math library's functionality.
 - **[MT]**                  — a fast Mersenne Twister pseudorandom number generator library.
 - **[OpenBLAS]**            — a fast, open, and maintained [basic linear algebra subprograms (BLAS)](http://en.wikipedia.org/wiki/Basic_Linear_Algebra_Subprograms) library, based on [Kazushige Goto's](http://en.wikipedia.org/wiki/Kazushige_Goto) famous [GotoBLAS](http://www.tacc.utexas.edu/tacc-projects/gotoblas2/).
 - **[LAPACK]**              — a library of linear algebra routines for solving systems of simultaneous linear equations, least-squares solutions of linear systems of equations, eigenvalue problems, and singular value problems.
-- **[AMOS]**                — Subroutines for computing Bessel functions and Airy functions.
+- **[AMOS]**                — subroutines for computing Bessel and Airy functions.
 - **[SuiteSparse]**         — a library of linear algebra routines for sparse matrices.
 - **[ARPACK]**              — a collection of subroutines designed to solve large, sparse eigenvalue problems.
 - **[FFTW]**                — library for computing fast Fourier transforms very quickly and efficiently.
 - **[PCRE]**                — Perl-compatible regular expressions library.
 - **[GMP]**                 — the GNU multiple precision arithmetic library, needed for bigint support
 - **[D3]**                  — JavaScript visualization library.
+- **[double-conversion]**   — efficient number-to-text conversion.
 
 [GNU make]:     http://www.gnu.org/software/make/
 [gcc]:          http://gcc.gnu.org/
@@ -140,6 +139,7 @@ Julia uses the following external libraries, which are automatically downloaded 
 [GNU readline]: http://cnswww.cns.cwru.edu/php/chet/readline/rltop.html
 [GMP]:          http://gmplib.org/
 [D3]:           http://mbostock.github.com/d3/
+[double-conversion]: http://double-conversion.googlecode.com/
 
 <a name="Directories"/>
 ## Directories
@@ -148,7 +148,7 @@ Julia uses the following external libraries, which are automatically downloaded 
     base/          source code for julia's standard library
     contrib/       emacs and textmate support for julia
     examples/      example julia programs
-    external/      external dependencies
+    deps/      external dependencies
     extras/        useful optional libraries
     lib/           shared libraries loaded by julia's standard libraries
     src/           source for julia language core
@@ -199,7 +199,7 @@ On Linux systems, the `Shift-Enter` binding can be set by placing the following 
 
 Julia has a web REPL with very preliminary graphics capabilities.
 Follow these instructions for setting up the web repl locally.
-In external, doing `make install-lighttpd` will download and build lighttpd.
+In deps, doing `make install-lighttpd` will download and build lighttpd.
 Use the launch-webserver script to start the webserver and web-repl.
 Point your browser to `http://localhost:2000/`.
 Try `plot(cumsum(randn(1000)))`

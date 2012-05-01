@@ -135,10 +135,11 @@ try
     ver = print_to_string(print,VERSION)
     commit = chomp(readall(`git rev-parse HEAD`))
     tagged = try chomp(readall(`git rev-parse --verify --quiet v$ver`))
-             catch; "doesn't reference a commit"; end
+             catch "doesn't reference a commit"; end
     ctime = int(readall(`git log -1 --pretty=format:%ct`))
     if commit != tagged
-        push(VERSION.build, ctime)
+        # 1250998746: ctime of first commit (Sat Aug 23 3:39:06 2009 UTC)
+        push(VERSION.build, ctime - 1250998746)
         push(VERSION.build, "r$(commit[1:4])")
     end
     clean = success(`git diff --quiet`)

@@ -15,9 +15,6 @@ function _jl_answer_color()
            "\033[1m\033[34m"
 end
 
-_jl_color_available() =
-    success(`tput setaf 0`) || has(ENV, "TERM") && matches(r"^xterm", ENV["TERM"])
-
 _jl_banner() = print(_jl_have_color ? _jl_banner_color : _jl_banner_plain)
 
 function repl_callback(ast::ANY, show_value)
@@ -167,6 +164,8 @@ function process_options(args::Array{Any,1})
         elseif args[i]=="-v" || args[i]=="--version"
             println("julia version $VERSION")
             exit(0)
+        elseif args[i]=="--no-history"
+            # see repl-readline.c
         elseif args[i][1]!='-'
             # program
             repl = false
@@ -190,7 +189,7 @@ function _start()
         ccall(:jl_register_toplevel_eh, Void, ())
         ccall(:jl_start_io_thread, Void, ())
         global const Workqueue = WorkItem[]
-        global const Waiting = HashTable(64)
+        global const Waiting = Dict(64)
 
         if !anyp(a->(a=="--worker"), ARGS)
             # start in "head node" mode
@@ -212,7 +211,7 @@ function _start()
 
         (quiet,repl) = process_options(ARGS)
         if repl
-            global _jl_have_color = _jl_color_available()
+            global _jl_have_color = success(`tput setaf 0`) || has(ENV, "TERM") && matches(r"^xterm", ENV["TERM"])
             if !quiet
                 _jl_banner()
             end

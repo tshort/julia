@@ -14,14 +14,15 @@ ref(s::String, i::Int) = next(s,i)[1]
 ref(s::String, i::Integer) = s[int(i)]
 ref(s::String, x::Real) = s[iround(x)]
 ref{T<:Integer}(s::String, r::Range1{T}) = s[int(first(r)):int(last(r))]
+# TODO: handle other ranges with stride ±1 specially?
 ref(s::String, v::AbstractVector) =
-    print_to_string(length(v), @thunk for i in v; print(s[i]); end)
+    print_to_string(length(v), @thunk for i in v print(s[i]) end)
 
 symbol(s::String) = symbol(cstring(s))
 string(s::String) = s
 
-print(s::String) = for c=s; print(c); end
-print(x...) = for i=x; print(i); end
+print(s::String) = for c in s print(c) end
+print(x...) = for i in x print(i) end
 println(args...) = print(args..., '\n')
 
 show(s::String) = print_quoted(s)
@@ -119,28 +120,76 @@ function chr2ind(s::String, i::Integer)
     end
 end
 
-function search(s::String, c::Char, o::Integer)
-    i = nextind(s,o)
+typealias Chars Union(Char,AbstractVector{Char})
+
+function strchr(s::String, c::Chars, i::Integer)
+    if i < 1 error("index out of range") end
+    i = nextind(s,i-1)
     while !done(s,i)
         d, j = next(s,i)
-        if c == d
+        if contains(c,d)
             return i
         end
         i = j
     end
-    return length(s)+1
+    return 0
 end
-search(s::String, c::Char) = search(s,c,0)
+strchr(s::String, c::Chars) = strchr(s,c,start(s))
 
-# TODO: search for a substring
+contains(s::String, c::Char) = (strchr(s,c)!=0)
 
-contains(s::String, c::Char) = isvalid(s,search(s,c))
+search(s::String, c::Chars, i::Integer) = (i=strchr(s,c,i); (i,nextind(s,i)))
+search(s::String, c::Chars) = search(s,c,start(s))
+
+function search(s::String, t::String, i::Integer)
+    if isempty(t)
+        return 1 <= i <= length(s)+1 ? (i,i) :
+               i == length(s)+2      ? (0,0) :
+               error("index out of range")
+    end
+    t1, j2 = next(t,start(t))
+    while true
+        i = strchr(s,t1,i)
+        if i == 0 return (0,0) end
+        c, ii = next(s,i)
+        j = j2; k = ii
+        matched = true
+        while !done(t,j)
+            if done(s,k)
+                matched = false
+                break
+            end
+            c, k = next(s,k)
+            d, j = next(t,j)
+            if c != d
+                matched = false
+                break
+            end
+        end
+        if matched
+            return (i,k)
+        end
+        i = ii
+    end
+end
+search(s::String, t::String) = search(s,t,start(s))
+
+type EachSearch
+    string::String
+    pattern
+end
+each_search(string::String, pattern) = EachSearch(string, pattern)
+
+start(itr::EachSearch) = search(itr.string, itr.pattern)
+done(itr::EachSearch, st) = (st[1]==0)
+next(itr::EachSearch, st) =
+    (st, search(itr.string, itr.pattern, max(nextind(itr.string,st[1]),st[2])))
 
 function chars(s::String)
     cx = Array(Char,strlen(s))
     i = 0
     for c in s
-        cx[i += 1] = c
+        cx[i+=1] = c
     end
     return cx
 end
@@ -210,16 +259,18 @@ end
 
 ## substrings reference original strings ##
 
-type SubString <: String
-    string::String
+type SubString{T<:String} <: String
+    string::T
     offset::Int
     length::Int
 
-    SubString(s::String, i::Int, j::Int) =
+    SubString(s::T, i::Int, j::Int) =
         (o=nextind(s,i-1)-1; new(s,o,thisind(s,j)-o))
 end
+SubString{T<:String}(s::T, i::Int, j::Int) = SubString{T}(s, i, j)
 SubString(s::SubString, i::Int, j::Int) = SubString(s.string, s.offset+i, s.offset+j)
 SubString(s::String, i::Integer, j::Integer) = SubString(s, int(i), int(j))
+SubString(s::String, i::Integer) = SubString(s, i, length(s))
 
 function next(s::SubString, i::Int)
     if i < 1 || i > s.length
@@ -237,7 +288,7 @@ length(s::SubString) = s.length
 
 function ref(s::String, r::Range1{Int})
     if first(r) < 1 || length(s) < last(r)
-        error("in substring slice: index out of range")
+        error("index out of range")
     end
     SubString(s, first(r), last(r))
 end
@@ -288,13 +339,6 @@ reverse(s::RevString) = s.string
 
 ## ropes for efficient concatenation, etc. ##
 
-# Idea: instead of this standard binary tree structure,
-# how about we keep an array of substrings, with an
-# offset array. We can do binary search on the offset
-# array so we get O(log(n)) indexing time still, but we
-# can compute the offsets lazily and avoid all the
-# futzing around while the string is being constructed.
-
 type RopeString <: String
     head::String
     tail::String
@@ -319,6 +363,7 @@ type RopeString <: String
     RopeString(h::String, t::String) =
         new(h, t, 1, length(h)+length(t))
 end
+RopeString(s::String) = RopeString(s,"")
 
 depth(s::String) = 0
 depth(s::RopeString) = s.depth
@@ -543,6 +588,9 @@ function _jl_interp_parse(s::String, unescape::Function, printer::Function)
                 push(sx, unescape(s[i:j-1]))
             end
             ex, j = parseatom(s,k)
+            if isa(ex,Expr) && is(ex.head,:continue)
+                throw(ParseError("incomplete expression"))
+            end
             push(sx, ex)
             i = j
         elseif c == '\\' && !done(s,k)
@@ -776,76 +824,58 @@ rpad(s, n::Integer, p) = rpad(string(s), n, string(p))
 lpad(s, n::Integer) = lpad(string(s), n, " ")
 rpad(s, n::Integer) = rpad(string(s), n, " ")
 
-# split on a single character in a collection
-function split(s::String, delims, include_empty::Bool)
-    i = start(s)
-    len = length(s)
+# splitter can be a Char, Vector{Char}, String, Regex, ...
+# any splitter that provides search(s::String, splitter)
+
+function split(str::String, splitter, limit::Integer, keep_empty::Bool)
     strs = String[]
-    while true
-        tokstart = tokend = i
-        while !done(s,i)
-            c,i = next(s,i)
-            if contains(delims, c)
-                break
+    i = start(str)
+    n = length(str)
+    j, k = search(str,splitter,i)
+    while 0 < j <= n && length(strs) != limit-1
+        if i < k
+            if keep_empty || i < j
+                push(strs, str[i:j-1])
             end
-            tokend = i
+            i = k
         end
-        if include_empty || tokstart < tokend
-            push(strs, s[tokstart:tokend-1])
-        end
-        if !(i <= len || i==len+1 && tokend!=i)
-            break
-        end
+        if k <= j; k = nextind(str,j) end
+        j, k = search(str,splitter,k)
+    end
+    if keep_empty || !done(str,i)
+        push(strs, str[i:])
     end
     return strs
 end
-split(s::String, x) = split(s, x, true)
-split(s::String) = split(s, [' ','\t','\n','\v','\f','\r'], false)
+split(s::String, spl, n::Integer) = split(s, spl, n, true)
+split(s::String, spl, keep::Bool) = split(s, spl, 0, keep)
+split(s::String, spl)             = split(s, spl, 0, true)
 
-# fast memchr-based split on a single byte for byte strings
-# function split(s::String, d::Uint8, include_empty::Bool)
-#     strs = String[]
-#     while 
-# end
+# a bit oddball, but standard behavior in Perl, Ruby & Python:
+split(str::String) = split(str, [' ','\t','\n','\v','\f','\r'], 0, false)
 
-# split on a string literal
-function split(s::String, delim::String, include_empty::Bool)
-    i = start(s)
-    strs = String[]
-    jj = start(delim)
-    d1, jj = next(delim,jj)
-    tokstart = tokend = i
-    while !done(s,i)
-        c,i = next(s,i)
-        if c == d1
-            j = jj
-            matched = true
-            while !done(delim,j)
-                if done(s,i)
-                    matched = false
-                    break
-                end
-                c,i = next(s,i)
-                d,j = next(delim,j)
-                if c != d
-                    matched = false
-                    break
-                end
-            end
-            if matched
-                if include_empty || tokstart < tokend
-                    push(strs, s[tokstart:tokend-1])
-                end
-                tokstart = i
-            end
+function replace(str::ByteString, splitter, repl::Function, limit::Integer)
+    n = 1
+    rstr = ""
+    i = a = start(str)
+    j, k = search(str,splitter,i)
+    while j != 0
+        if i == a || i < k
+            rstr = RopeString(rstr,SubString(str,i,j-1))
+            rstr = RopeString(rstr,string(repl(SubString(str,j,k-1))))
+            i = k
         end
-        tokend = i
+        if k <= j; k = nextind(str,j) end
+        j, k = search(str,splitter,k)
+        if n == limit break end
+        n += 1
     end
-    if include_empty || tokstart < tokend
-        push(strs, s[tokstart:tokend-1])
-    end
-    return strs
+    rstr = RopeString(rstr,SubString(str,i))
+    print_to_string(length(rstr),print,rstr)
 end
+replace(s::String, spl, f::Function, n::Integer) = replace(cstring(s), spl, f, n)
+replace(s::String, spl, r, n::Integer) = replace(s, spl, x->r, n)
+replace(s::String, spl, r) = replace(s, spl, r, 0)
 
 function print_joined(strings, delim, last)
     i = start(strings)
@@ -913,7 +943,9 @@ function parse_int{T<:Integer}(::Type{T}, s::String, base::Integer)
     i = start(s)
     while true
         if done(s,i)
-            throw(ArgumentError(strcat("premature end of integer (in ",show_to_string(s),")")))
+            throw(ArgumentError(strcat(
+                "premature end of integer (in ",show_to_string(s),")"
+            )))
         end
         c,i = next(s,i)
         if !iswspace(c)
@@ -924,12 +956,16 @@ function parse_int{T<:Integer}(::Type{T}, s::String, base::Integer)
     if T <: Signed && c == '-'
         sgn = -sgn
         if done(s,i)
-            throw(ArgumentError(strcat("premature end of integer (in ",show_to_string(s),")")))
+            throw(ArgumentError(strcat(
+                "premature end of integer (in ", show_to_string(s), ")"
+            )))
         end
         c,i = next(s,i)
     elseif c == '+'
         if done(s,i)
-            throw(ArgumentError(strcat("premature end of integer (in ",show_to_string(s),")")))
+            throw(ArgumentError(strcat(
+                "premature end of integer (in ", show_to_string(s), ")"
+            )))
         end
         c,i = next(s,i)
     end
@@ -941,12 +977,16 @@ function parse_int{T<:Integer}(::Type{T}, s::String, base::Integer)
             'a' <= c <= 'z' ? c-'a'+10 : typemax(Int)
         if d >= base
             if !iswspace(c)
-                throw(ArgumentError(strcat(show_to_string(c)," is not a valid digit (in ",show_to_string(s),")")))
+                throw(ArgumentError(strcat(
+                    show_to_string(c), " is not a valid digit (in ", show_to_string(s), ")"
+                )))
             end
             while !done(s,i)
                 c,i = next(s,i)
                 if !iswspace(c)
-                    throw(ArgumentError(strcat("extra characters after whitespace (in ",show_to_string(s),")")))
+                    throw(ArgumentError(strcat(
+                        "extra characters after whitespace (in ", show_to_string(s), ")"
+                    )))
                 end
             end
         else
@@ -1064,8 +1104,7 @@ parse_float(::Type{Float32}, x::String) = float32(x)
 
 for conv in (:float, :float32, :float64,
              :int, :int8, :int16, :int32, :int64,
-             :uint, :uint8, :uint16, :uint32, :uint64,
-             )
+             :uint, :uint8, :uint16, :uint32, :uint64)
     @eval ($conv){S<:String}(a::AbstractArray{S}) = map($conv, a)
 end
 
@@ -1077,16 +1116,17 @@ function lexcmp(a::Array{Uint8,1}, b::Array{Uint8,1})
     c < 0 ? -1 : c > 0 ? +1 : cmp(length(a),length(b))
 end
 
-# find the index of the first occurrence of a byte value in a byte array
+# find the index of the first occurrence of a value in a byte array
 
-function memchr(a::Array{Uint8,1}, b::Integer, off::Integer)
+function memchr(a::Array{Uint8,1}, b::Integer, i::Integer)
+    if i < 1 error("index out of range") end
     n = length(a)
-    if n < off error("memchr: index out of range") end
+    if i > n return i == n+1 ? 0 : error("index out of range") end
     p = pointer(a)
-    q = ccall(:memchr, Ptr{Uint8}, (Ptr{Uint8}, Int32, Uint), p+off, b, n-off)
-    q != C_NULL ? int(q-p+1) : n+1
+    q = ccall(:memchr, Ptr{Uint8}, (Ptr{Uint8}, Int32, Uint), p+i-1, b, n-i+1)
+    q == C_NULL ? 0 : int(q-p+1)
 end
-memchr(a::Array{Uint8,1}, b::Integer) = memchr(a,b,0)
+memchr(a::Array{Uint8,1}, b::Integer) = memchr(a,b,1)
 
 # concatenate byte arrays into a single array
 
