@@ -1331,6 +1331,16 @@ FFT functions in Julia are largely implemented by calling functions from `FFTW <
 
    Inverse N-d FFT
 
+.. function:: rfft(A [, dim=1])
+
+   One-dimensional FFT of real array A along dimension dim. If A has size
+   ``(..., n_dim, ...)``, the result has size ``(..., floor(n_dim/2)+1, ...)``.
+
+.. function:: rfftn(A)
+
+   N-d FFT of real array A. If A has size ``(n_1, ..., n_d)``, the result has size
+   ``(floor(n_1/2)+1, ..., n_d)``.
+
 .. function:: fftshift(x)
 
    Swap the first and second halves of each dimension of ``x``.
