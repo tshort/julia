@@ -201,10 +201,11 @@
     `(lambda ,argl
        (scope-block ,body))))
 
-(define (symbols->typevars sl upperbounds)
-  (if (null? upperbounds)
-      (map (lambda (x)    `(call (top typevar) ',x)) sl)
-      (map (lambda (x ub) `(call (top typevar) ',x ,ub)) sl upperbounds)))
+(define (symbols->typevars sl upperbounds bnd)
+  (let ((bnd (if bnd '(true) '())))
+    (if (null? upperbounds)
+	(map (lambda (x)    `(call (top typevar) ',x ,@bnd)) sl)
+	(map (lambda (x ub) `(call (top typevar) ',x ,ub ,@bnd)) sl upperbounds))))
 
 (define (sparam-name-bounds sparams names bounds)
   (cond ((null? sparams)
@@ -233,7 +234,7 @@
 	 (let ((f (gensy)))
 	   `(call (lambda (,@names ,f)
 		    (method ,name (tuple ,@types) ,f (tuple ,@names)))
-		  ,@(symbols->typevars names bounds)
+		  ,@(symbols->typevars names bounds #t)
 		  ,body))))))
 
 (define (struct-def-expr name params super fields)
@@ -364,7 +365,7 @@
 	       (call (top new_struct_fields)
 		     ,name ,super (tuple ,@field-types))
 	       ,name)))
-	    ,@(symbols->typevars params bounds)))
+	    ,@(symbols->typevars params bounds #f)))
 	   ,@(if (null? defs)
 		 `(,(default-outer-ctor name field-names field-types
 		      params bounds))
@@ -388,7 +389,7 @@
 		      (quote ,name) (tuple ,@params)))
 	     (call (top new_tag_type_super) ,name ,super)
 	     ,name)))
-	 ,@(symbols->typevars params bounds)))
+	 ,@(symbols->typevars params bounds #f)))
      (null))))
 
 (define (bits-def-expr n name params super)
@@ -408,7 +409,7 @@
 		      (quote ,name) (tuple ,@params) ,n))
 	     (call (top new_tag_type_super) ,name ,super)
 	     ,name)))
-	 ,@(symbols->typevars params bounds)))
+	 ,@(symbols->typevars params bounds #f)))
      (null))))
 
 ; take apart a type signature, e.g. T{X} <: S{Y}
@@ -683,7 +684,7 @@
 			     (const
 			      (= ,name (call (top new_type_constructor)
 					     (tuple ,@params) ,type-ex))))
-			   ,@(symbols->typevars params bounds))))
+			   ,@(symbols->typevars params bounds #f))))
 
    (pattern-lambda (comparison . chain) (expand-compare-chain chain))
 
@@ -776,8 +777,8 @@
 			  (if (not (every (lambda (e) (and (length= e 3)
 							   (eq? (car e) '=>)))
 					  args))
-			      (error "invalid hash table literal")
-			      `(call (top hashtable)
+			      (error "invalid dict literal")
+			      `(call (top dict)
 				     (tuple ,@(map cadr  args))
 				     (tuple ,@(map caddr args)))))
 			 ((any (lambda (e) (and (pair? e) (eq? (car e) '...)))
@@ -862,10 +863,8 @@
    ;; for loops
 
    (pattern-lambda
-    (for (= var (: a b)) body)
+    (for (= lhs (: a b)) body)
     (begin
-      (if (not (symbol? var))
-	  (error "invalid for loop syntax: expected symbol"))
       (let ((cnt (gensy))
 	    (lim (if (number? b) b (gensy))))
 	`(scope-block
@@ -875,7 +874,7 @@
 	   (break-block loop-exit
 			(_while (call <= ,cnt ,lim)
 				(block
-				 (= ,var ,cnt)
+				 (= ,lhs ,cnt)
 				 (break-block loop-cont
 					      ,body)
 				 (= ,cnt (call (top convert)
@@ -884,7 +883,7 @@
 
    ; for loop over arbitrary vectors
    (pattern-lambda
-    (for (= i X) body)
+    (for (= lhs X) body)
     (let ((coll  (gensy))
 	  (state (gensy)))
       `(scope-block
@@ -892,7 +891,7 @@
 	       (= ,state (call (top start) ,coll))
 	       (while (call (top !) (call (top done) ,coll ,state))
 		      (block
-		       (= (tuple ,i ,state) (call (top next) ,coll ,state))
+		       (= (tuple ,lhs ,state) (call (top next) ,coll ,state))
 		       ,body))))))
 
    ; update operators
@@ -1093,13 +1092,20 @@
 	    `(for ,(car ranges)
 		  ,(construct-loops (cdr ranges)))))
 
+      (define (lhs-vars e)
+	(cond ((symbol? e) (list e))
+	      ((and (pair? e) (eq? (car e) 'tuple))
+	       (apply append (map lhs-vars (cdr e))))
+	      (else '())))
+
       ;; Evaluate the comprehension
       (let ((loopranges
 	     (map (lambda (r v) `(= ,(cadr r) ,v)) ranges rv)))
 	`(scope-block
 	  (block
 	   (local ,oneresult)
-	   ,@(map (lambda (r) `(local ,(cadr r))) ranges)
+	   ,@(map (lambda (r) `(local ,r))
+		  (apply append (map (lambda (r) (lhs-vars (cadr r))) ranges)))
 	   ,@(map (lambda (v r) `(= ,v ,(caddr r))) rv ranges)
 	   ;; the evaluate-one code is used by type inference but does not run
 	   (if (call (top !) true) ,(evaluate-one loopranges))

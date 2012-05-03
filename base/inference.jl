@@ -60,7 +60,7 @@ isType(t::ANY) = isa(t,AbstractKind) && is((t::AbstractKind).name,Type.name)
 
 isseqtype(t::ANY) = isa(t,AbstractKind) && is((t::AbstractKind).name.name,:...)
 
-const t_func = IdTable()
+const t_func = ObjectIdDict()
 #t_func[tuple] = (0, Inf, (args...)->limit_tuple_depth(args))
 t_func[throw] = (1, 1, x->None)
 t_func[boxsi8] = (1, 1, x->Int8)
@@ -318,7 +318,7 @@ function builtin_tfunction(f::ANY, args::ANY, argtypes::ANY)
     if is(f,tuple)
         return limit_tuple_depth(argtypes)
     end
-    tf = get(t_func::IdTable, f, false)
+    tf = get(t_func::ObjectIdDict, f, false)
     if is(tf,false)
         # struct constructor
         if isa(f, CompositeKind)
@@ -342,7 +342,7 @@ end
 
 type StaticVarInfo
     sp::Tuple
-    cenv::IdTable   # types of closed vars
+    cenv::ObjectIdDict   # types of closed vars
 end
 
 function a2t(a::AbstractVector)
@@ -679,7 +679,7 @@ abstract_eval(s::SymbolNode, vtypes, sv::StaticVarInfo) =
 
 abstract_eval(x, vtypes, sv::StaticVarInfo) = abstract_eval_constant(x)
 
-typealias VarTable IdTable
+typealias VarTable ObjectIdDict
 
 type StateUpdate
     var::Symbol
@@ -778,12 +778,12 @@ end
 
 function stupdate(state, changes::Union(StateUpdate,VarTable), vars)
     if is(state,())
-        state = IdTable()
+        state = ObjectIdDict()
     end
     for i = 1:length(vars)
         v = vars[i]
         newtype = changes[v]
-        oldtype = get(state::IdTable,v,NF)
+        oldtype = get(state::ObjectIdDict,v,NF)
         if tchanged(newtype, oldtype)
             state[v] = tmerge(oldtype, newtype)
         end
@@ -925,13 +925,13 @@ function typeinf(linfo::LambdaStaticData,atypes::Tuple,sparams::Tuple, def, cop)
 
     rec = false
 
-    s = { () | i=1:n }
+    s = { () for i=1:n }
     recpts = IntSet(n+1)  # statements that depend recursively on our value
     W = IntSet(n+1)
     # initial set of pc
     add(W,1)
     # initial types
-    s[1] = IdTable()
+    s[1] = ObjectIdDict()
     for v in vars
         s[1][v] = Undef
     end
@@ -949,7 +949,7 @@ function typeinf(linfo::LambdaStaticData,atypes::Tuple,sparams::Tuple, def, cop)
         s[1][args[i]] = atypes[i]
     end
     # types of closed vars
-    cenv = IdTable()
+    cenv = ObjectIdDict()
     for vi = ((ast.args[2][3])::Array{Any,1})
         vi::Array{Any,1}
         vname = vi[1]
@@ -972,7 +972,7 @@ function typeinf(linfo::LambdaStaticData,atypes::Tuple,sparams::Tuple, def, cop)
 
     # exception handlers
     cur_hand = ()
-    handler_at = { () | i=1:n }
+    handler_at = { () for i=1:n }
 
     while !isempty(W)
         pc = choose(W)
@@ -1108,7 +1108,7 @@ function typeinf(linfo::LambdaStaticData,atypes::Tuple,sparams::Tuple, def, cop)
 end
 
 function record_var_type(e::Symbol, t, decls)
-    otherTy = get(decls::IdTable, e, false)
+    otherTy = get(decls::ObjectIdDict, e, false)
     # keep track of whether a variable is always the same type
     if !is(otherTy,false)
         if !is(otherTy, t)
@@ -1175,7 +1175,7 @@ end
 # annotate types of all symbols in AST
 function type_annotate(ast::Expr, states::Array{Any,1},
                        sv::ANY, rettype::ANY, vnames::ANY)
-    decls = IdTable()
+    decls = ObjectIdDict()
     closures = LambdaStaticData[]
     body = ast.args[3].args::Array{Any,1}
     for i=1:length(body)
@@ -1299,6 +1299,9 @@ end
 # static parameters are ok if all the static parameter values are leaf types,
 # meaning they are fully known.
 function inlineable(f, e::Expr, vars)
+    if !(isa(f,Function)||isa(f,CompositeKind))
+        return NF
+    end
     argexprs = a2t_butfirst(e.args)
     atypes = limit_tuple_type(map(exprtype, argexprs))
 
@@ -1396,7 +1399,7 @@ function inlineable(f, e::Expr, vars)
         return NF
     end
     # ok, substitute argument expressions for argument names in the body
-    spnames = { sp[i].name | i=1:2:length(sp) }
+    spnames = { sp[i].name for i=1:2:length(sp) }
     return sym_replace(copy(expr), append(args,spnames),
                        append(argexprs,spvals))
 end
@@ -1484,7 +1487,7 @@ function inlining_pass(e::Expr, vars)
                     newargs[i-2] = aarg.args[2:]
                 elseif isa(t,Tuple) && isleaftype(t)
                     # apply(f,t::(x,y)) => f(t[1],t[2])
-                    newargs[i-2] = { _jl_mk_tupleref(aarg,j) | j=1:length(t) }
+                    newargs[i-2] = { _jl_mk_tupleref(aarg,j) for j=1:length(t) }
                 else
                     # not all args expandable
                     return e
@@ -1544,7 +1547,7 @@ function tuple_elim_pass(ast::Expr)
                     if nv > 0
                         del(body, i)  # remove (multiple_value)
                         del(body, i)  # remove tuple allocation
-                        vals = { unique_name(ast) | j=1:nv }
+                        vals = { unique_name(ast) for j=1:nv }
                         # convert tuple allocation to a series of assignments
                         # to local variables
                         for j=1:nv

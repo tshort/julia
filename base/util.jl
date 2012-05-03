@@ -84,6 +84,12 @@ function edit(file::String, line::Int)
     editor = get(ENV, "JULIA_EDITOR", "emacs")
     issrc = file[end-2:end] == ".jl"
     if issrc
+        if file[1]!='/' && !is_file_readable(file)
+            file2 = "$JULIA_HOME/base/$file"
+            if is_file_readable(file2)
+                file = file2
+            end
+        end
         if editor == "emacs"
             jmode = "$JULIA_HOME/contrib/julia-mode.el"
             run(`emacs $file --eval "(progn
@@ -97,7 +103,7 @@ function edit(file::String, line::Int)
         elseif editor == "subl"
             run(`subl $file:$line`)
         else
-            error("Invalid JULIA_EDITOR value: $(show_to_string(editor))")
+            error("Invalid JULIA_EDITOR value: $(sprint(show, editor))")
         end
     else
         if editor == "emacs"
@@ -109,7 +115,7 @@ function edit(file::String, line::Int)
         elseif editor == "subl"
             run(`subl $file:$line`)
         else
-            error("Invalid JULIA_EDITOR value: $(show_to_string(editor))")
+            error("Invalid JULIA_EDITOR value: $(sprint(show, editor))")
         end
     end
     nothing
@@ -217,14 +223,14 @@ end
 # help
 
 function parse_help(stream)
-    helpdb = HashTable()
+    helpdb = Dict()
     for l = each_line(stream)
         if isempty(l)
             continue
         end
         if length(l) >= 3 && l[1:3]=="## "
             heading = l[4:end-1]
-            category = HashTable()
+            category = Dict()
             helpdb[heading] = category
             continue
         end

@@ -15,7 +15,7 @@ type BitArray{T<:Integer, N} <: AbstractArray{T, N}
         if nc > 0
             chunks[end] = uint64(0)
         end
-        new(chunks, [i::Int | i=dims])
+        new(chunks, [i::Int for i in dims])
     end
 end
 
@@ -93,7 +93,7 @@ function _jl_copy_chunks(dest::Vector{Uint64}, pos_d::Integer, src::Vector{Uint6
     delta_ks = ks1 - ks0
 
     u = ~(uint64(0))
-    if delta_kd ==  0
+    if delta_kd == 0
         msk_d0 = ~(u << ld0) | (u << ld1 << 1)
     else
         msk_d0 = ~(u << ld0)
@@ -244,7 +244,7 @@ function reshape{T,N}(B::BitArray{T}, dims::NTuple{N,Int})
     end
     Br = BitArray{T,N}()
     Br.chunks = B.chunks
-    Br.dims = [i::Int | i=dims]
+    Br.dims = [i::Int for i in dims]
     return Br
 end
 
@@ -269,16 +269,21 @@ end
 convert{T<:Integer,S<:Integer,n}(::Type{BitArray{T,n}}, B::BitArray{S,n}) =
     copy_to(similar(B, T), B)
 
-# XXX : this is what Array does; but here it would make sense to keep
-#       dimensionality!
-function reinterpret{T<:Integer}(::Type{T}, B::BitArray)
-    A = BitArray(T, numel(B))
+# this version keeps dimensionality
+# (it's an extension of Array's behavior, which only does
+# this for Vectors)
+function reinterpret{T<:Integer,S<:Integer,N}(::Type{T}, B::BitArray{S,N})
+    A = BitArray{T,N}()
+    A.dims = copy(B.dims)
     A.chunks = B.chunks
     return A
 end
-# this version keeps dimensionality
-function bitreinterpret{T<:Integer}(::Type{T}, B::BitArray)
-    A = similar(B, T)
+function reinterpret{T<:Integer,S<:Integer,N}(::Type{T}, B::BitArray{S}, dims::NTuple{N,Int})
+    if prod(dims) != numel(B)
+        error("reinterpret: invalid dimensions")
+    end
+    A = BitArray{T,N}()
+    A.dims = [i::Int for i in dims]
     A.chunks = B.chunks
     return A
 end
@@ -364,9 +369,9 @@ let ref_cache = nothing
             return X
         end
         if is(ref_cache,nothing)
-            ref_cache = HashTable()
+            ref_cache = Dict()
         end
-        gap_lst = [last(r)-first(r)+1 | r in I]
+        gap_lst = [last(r)-first(r)+1 for r in I]
         stride_lst = Array(Int, nI)
         stride = 1
         ind = f0
@@ -415,7 +420,7 @@ let ref_cache = nothing
         X = similar(B, d)
 
         if is(ref_cache,nothing)
-            ref_cache = HashTable()
+            ref_cache = Dict()
         end
         gen_cartesian_map(ref_cache, ivars -> quote
                 X[storeind] = B[$(ivars...)]
@@ -513,9 +518,9 @@ let assign_cache = nothing
             return B
         end
         if is(assign_cache,nothing)
-            assign_cache = HashTable()
+            assign_cache = Dict()
         end
-        gap_lst = [last(r)-first(r)+1 | r in I]
+        gap_lst = [last(r)-first(r)+1 for r in I]
         stride_lst = Array(Int, nI)
         stride = 1
         ind = f0
@@ -581,7 +586,7 @@ let assign_cache = nothing
     global assign
     function assign(B::BitArray, x::Number, I0::Indices, I::Indices...)
         if is(assign_cache,nothing)
-            assign_cache = HashTable()
+            assign_cache = Dict()
         end
         gen_cartesian_map(assign_cache, ivars->:(B[$(ivars...)] = x),
             tuple(I0, I...),
@@ -599,7 +604,7 @@ let assign_cache = nothing
     global assign
     function assign{T<:Integer,S<:Number}(B::BitArray{T}, X::AbstractArray{S}, I0::Indices, I::Indices...)
         if is(assign_cache,nothing)
-            assign_cache = HashTable()
+            assign_cache = Dict()
         end
         gen_cartesian_map(assign_cache,
             ivars->:(B[$(ivars...)] = X[refind]; refind += 1),
@@ -1244,7 +1249,7 @@ function findn(B::BitArray)
     ranges = ntuple(ndims(B), d->(1:size(B,d)))
 
     if is(findn_cache,nothing)
-        findn_cache = HashTable()
+        findn_cache = Dict()
     end
 
     gen_cartesian_map(findn_cache, findn_one, ranges,
@@ -1310,7 +1315,7 @@ function bitareduce{T<:Integer}(f::Function, A::BitArray{T}, region::Region, v0)
     R = BitArray(T, dimsR)
 
     if is(bitareduce_cache,nothing)
-        bitareduce_cache = HashTable()
+        bitareduce_cache = Dict()
     end
 
     key = ndimsA
@@ -1345,8 +1350,8 @@ sum(B::BitArray) = nnz(B)
 
 prod{T}(B::BitArray{T}) = (nnz(B) == length(B) ? one(T) : zero(T))
 
-min(B::BitArray) = prod(B)
-max{T}(B::BitArray{T}) = (nnz(B) > 0 ? one(T) : zero(T))
+min{T}(B::BitArray{T}) = length(B) > 0 ? prod(B) : typemax(T)
+max{T}(B::BitArray{T}) = length(B) > 0 ? (nnz(B) > 0 ? one(T) : zero(T)) : typemin(T)
 
 ## map over bitarrays ##
 
@@ -1468,7 +1473,7 @@ function permute(B::BitArray, perm)
     end
 
     #calculates all the strides
-    strides = [ stride(B, perm[dim]) | dim = 1:length(perm) ]
+    strides = [ stride(B, perm[dim]) for dim = 1:length(perm) ]
 
     #Creates offset, because indexing starts at 1
     offset = 0
@@ -1513,7 +1518,7 @@ function permute(B::BitArray, perm)
     end
 
     if is(permute_cache,nothing)
-	permute_cache = HashTable()
+	permute_cache = Dict()
     end
 
     gen_cartesian_map(permute_cache, permute_one, ranges,
@@ -1584,7 +1589,7 @@ function vcat{T}(A::BitMatrix{T}...)
         if size(A[j], 2) != ncols; error("vcat: mismatched dimensions"); end
     end
     B = BitArray(T, nrows, ncols)
-    nrowsA = [size(a, 1) | a = A]
+    nrowsA = [size(a, 1) for a in A]
     pos_d = 1
     pos_s = ones(Int, nargs)
     for j = 1:ncols

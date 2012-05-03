@@ -90,7 +90,6 @@ void jl_enter_handler(jl_savestate_t *ss, jmp_buf *handlr)
     ss->eh_ctx = jl_current_task->state.eh_ctx;
     ss->bt = jl_current_task->state.bt;
     ss->ostream_obj = jl_current_task->state.ostream_obj;
-    ss->current_output_stream = jl_current_task->state.current_output_stream;
     ss->prev = jl_current_task->state.prev;
 #ifdef JL_GC_MARKSWEEP
     ss->gcstack = jl_pgcstack;
@@ -169,12 +168,12 @@ JL_CALLABLE(jl_f_apply)
     JL_TYPECHK(apply, function, args[0]);
     if (nargs == 2 && jl_is_tuple(args[1])) {
         return jl_apply((jl_function_t*)args[0], &jl_tupleref(args[1],0),
-                        ((jl_tuple_t*)args[1])->length);
+                        jl_tuple_len(args[1]));
     }
     size_t n=0, i, j;
     for(i=1; i < nargs; i++) {
         if (jl_is_tuple(args[i])) {
-            n += ((jl_tuple_t*)args[i])->length;
+            n += jl_tuple_len(args[i]);
         }
         else if (jl_typeis(args[i], jl_array_any_type)) {
             n += jl_array_len(args[i]);
@@ -197,7 +196,7 @@ JL_CALLABLE(jl_f_apply)
     for(i=1; i < nargs; i++) {
         if (jl_is_tuple(args[i])) {
             jl_tuple_t *t = (jl_tuple_t*)args[i];
-            for(j=0; j < t->length; j++)
+            for(j=0; j < jl_tuple_len(t); j++)
                 newargs[n++] = jl_tupleref(t, j);
         }
         else {
@@ -471,8 +470,8 @@ char *jl_find_file_in_path(const char *fname)
     int fid = open (fpath, O_RDONLY);
     // try adding julia home
     if (fid == -1 && julia_home && fname[0] != '/') {
-        asprintf(&fpath, "%s/%s", julia_home, fname);
-        fid = open (fpath, O_RDONLY);
+        if (-1 != asprintf(&fpath, "%s/%s", julia_home, fname))
+            fid = open (fpath, O_RDONLY);
     }
     if (fid == -1) {
         if (fpath != fname) free(fpath);
@@ -559,7 +558,7 @@ JL_CALLABLE(jl_f_tupleref)
     JL_TYPECHK(tupleref, long, args[1]);
     jl_tuple_t *t = (jl_tuple_t*)args[0];
     size_t i = jl_unbox_long(args[1])-1;
-    if (i >= t->length)
+    if (i >= jl_tuple_len(t))
         jl_error("tupleref: index out of range");
     return jl_tupleref(t, i);
 }
@@ -568,7 +567,7 @@ JL_CALLABLE(jl_f_tuplelen)
 {
     JL_NARGS(tuplelen, 1, 1);
     JL_TYPECHK(tuplelen, tuple, args[0]);
-    return jl_box_long(((jl_tuple_t*)args[0])->length);
+    return jl_box_long(jl_tuple_len(args[0]));
 }
 
 // structs --------------------------------------------------------------------
@@ -577,7 +576,7 @@ static size_t field_offset(jl_struct_type_t *t, jl_sym_t *fld, int err)
 {
     jl_tuple_t *fn = t->names;
     size_t i;
-    for(i=0; i < fn->length; i++) {
+    for(i=0; i < jl_tuple_len(fn); i++) {
         if (jl_tupleref(fn,i) == (jl_value_t*)fld) {
             return i;
         }
@@ -660,7 +659,7 @@ JL_CALLABLE(jl_f_convert_tuple)
     jl_tuple_t *x = (jl_tuple_t*)args[1];
     if (to == jl_tuple_type)
         return (jl_value_t*)x;
-    size_t i, cl=x->length, pl=to->length;
+    size_t i, cl=jl_tuple_len(x), pl=jl_tuple_len(to);
     jl_tuple_t *out = jl_alloc_tuple(cl);
     JL_GC_PUSH(&out);
     jl_value_t *ce, *pe=NULL;
@@ -712,20 +711,20 @@ DLLEXPORT void *jl_array_ptr(jl_array_t *a)
 
 // printing -------------------------------------------------------------------
 
-DLLEXPORT void jl_print_array_uint8(jl_array_t *b)
+DLLEXPORT void jl_print_array_uint8(ios_t *s, jl_array_t *b)
 {
-    ios_write(jl_current_output_stream(), (char*)b->data, b->length);
+    ios_write(s, (char*)b->data, b->length);
 }
 
-DLLEXPORT void jl_print_symbol(jl_sym_t *sym)
+DLLEXPORT void jl_print_symbol(ios_t *s, jl_sym_t *sym)
 {
-    ios_puts(sym->name, jl_current_output_stream());
+    ios_puts(sym->name, s);
 }
 
 // for bootstrap
-DLLEXPORT void jl_print_int64(int64_t i)
+DLLEXPORT void jl_print_int64(ios_t *s, int64_t i)
 {
-    ios_printf(jl_current_output_stream(), "%lld", i);
+    ios_printf(s, "%lld", i);
 }
 
 DLLEXPORT int jl_strtod(char *str, double *out)
@@ -762,35 +761,45 @@ DLLEXPORT int jl_strtof(char *str, float *out)
 
 // showing --------------------------------------------------------------------
 
+jl_value_t *jl_stdout_obj()
+{
+    return jl_get_global(jl_base_module, jl_symbol("stdout_stream"));
+}
+
+jl_value_t *jl_stderr_obj()
+{
+    return jl_get_global(jl_base_module, jl_symbol("stderr_stream"));
+}
+
 static jl_function_t *jl_show_gf=NULL;
 
-void jl_show(jl_value_t *v)
+void jl_show(jl_value_t *stream, jl_value_t *v)
 {
     if (jl_base_module) {
         if (jl_show_gf == NULL) {
             jl_show_gf = (jl_function_t*)jl_get_global(jl_base_module, jl_symbol("show"));
         }
-        jl_apply(jl_show_gf, &v, 1);
+        jl_value_t *args[2] = {stream,v};
+        jl_apply(jl_show_gf, args, 2);
     }
 }
 
 // comma_one prints a comma for 1 element, e.g. "(x,)"
-void jl_show_tuple(jl_tuple_t *t, char opn, char cls, int comma_one)
+void jl_show_tuple(jl_value_t *st, jl_tuple_t *t, char opn, char cls, int comma_one)
 {
-    ios_t *s = jl_current_output_stream();
+    ios_t *s = (ios_t*)jl_iostr_data(st);
     ios_putc(opn, s);
-    size_t i, n=t->length;
+    size_t i, n=jl_tuple_len(t);
     for(i=0; i < n; i++) {
-        jl_show(jl_tupleref(t, i));
+        jl_show(st, jl_tupleref(t, i));
         if ((i < n-1) || (n==1 && comma_one))
             ios_putc(',', s);
     }
     ios_putc(cls, s);
 }
 
-static void show_function(jl_value_t *v)
+static void show_function(ios_t *s, jl_value_t *v)
 {
-    ios_t *s = jl_current_output_stream();
     if (jl_is_gf(v)) {
         ios_puts(jl_gf_name(v)->name, s);
     }
@@ -799,9 +808,9 @@ static void show_function(jl_value_t *v)
     }
 }
 
-static void show_type(jl_value_t *t)
+static void show_type(jl_value_t *st, jl_value_t *t)
 {
-    ios_t *s = jl_current_output_stream();
+    ios_t *s = (ios_t*)jl_iostr_data(st);
     if (jl_is_union_type(t)) {
         if (t == (jl_value_t*)jl_bottom_type) {
             ios_write(s, "None", 4);
@@ -811,38 +820,38 @@ static void show_type(jl_value_t *t)
         }
         else {
             ios_write(s, "Union", 5);
-            jl_show_tuple(((jl_uniontype_t*)t)->types, '(', ')', 0);
+            jl_show_tuple(st, ((jl_uniontype_t*)t)->types, '(', ')', 0);
         }
     }
     else if (jl_is_seq_type(t)) {
-        jl_show(jl_tparam0(t));
+        jl_show(st, jl_tparam0(t));
         ios_write(s, "...", 3);
     }
     else if (jl_is_typector(t)) {
-        jl_show((jl_value_t*)((jl_typector_t*)t)->body);
+        jl_show(st, (jl_value_t*)((jl_typector_t*)t)->body);
     }
     else {
         assert(jl_is_some_tag_type(t));
         jl_tag_type_t *tt = (jl_tag_type_t*)t;
         ios_puts(tt->name->name->name, s);
         jl_tuple_t *p = tt->parameters;
-        if (p->length > 0)
-            jl_show_tuple(p, '{', '}', 0);
+        if (jl_tuple_len(p) > 0)
+            jl_show_tuple(st, p, '{', '}', 0);
     }
 }
 
-DLLEXPORT void jl_show_any(jl_value_t *v)
+DLLEXPORT void jl_show_any(jl_value_t *str, jl_value_t *v)
 {
+    ios_t *s = (ios_t*)jl_iostr_data(str);
     // fallback for printing some other builtin types
-    ios_t *s = jl_current_output_stream();
     if (jl_is_tuple(v)) {
-        jl_show_tuple((jl_tuple_t*)v, '(', ')', 1);
+        jl_show_tuple(str, (jl_tuple_t*)v, '(', ')', 1);
     }
     else if (jl_is_type(v)) {
-        show_type(v);
+        show_type(str, v);
     }
     else if (jl_is_func(v)) {
-        show_function(v);
+        show_function(s, v);
     }
     else if (jl_typeis(v,jl_intrinsic_type)) {
         ios_printf(s, "#<intrinsic-function %d>", *(uint32_t*)jl_bits_data(v));
@@ -854,9 +863,9 @@ DLLEXPORT void jl_show_any(jl_value_t *v)
             ios_puts(st->name->name->name, s);
             ios_putc('(', s);
             size_t i;
-            size_t n = st->names->length;
+            size_t n = jl_tuple_len(st->names);
             for(i=0; i < n; i++) {
-                jl_show(nth_field(v, i));
+                jl_show(str, nth_field(v, i));
                 if (i < n-1)
                     ios_putc(',', s);
             }
@@ -925,7 +934,7 @@ void jl_reinstantiate_inner_types(jl_tag_type_t *t);
 static void check_type_tuple(jl_tuple_t *t, jl_sym_t *name, const char *ctx)
 {
     size_t i;
-    for(i=0; i < t->length; i++) {
+    for(i=0; i < jl_tuple_len(t); i++) {
         jl_value_t *elt = jl_tupleref(t,i);
         if (!jl_is_type(elt) && !jl_is_typevar(elt)) {
             jl_type_error_rt(name->name, ctx, (jl_value_t*)jl_type_type, elt);
@@ -955,7 +964,7 @@ JL_CALLABLE(jl_f_new_struct_fields)
 
     st->types = ftypes;
 
-    if (st->parameters->length > 0) {
+    if (jl_tuple_len(st->parameters) > 0) {
         // once the full structure is built, use instantiate_type to walk it
         // and tie up self-references.
         st->name->cache = jl_null;
@@ -993,7 +1002,7 @@ JL_CALLABLE(jl_f_new_tag_type_super)
     jl_value_t *super = args[1];
     check_supertype(super, tt->name->name->name);
     tt->super = (jl_tag_type_t*)super;
-    if (tt->parameters->length > 0) {
+    if (jl_tuple_len(tt->parameters) > 0) {
         tt->name->cache = jl_null;
         jl_reinstantiate_inner_types((jl_tag_type_t*)tt);
     }
@@ -1025,6 +1034,11 @@ JL_CALLABLE(jl_f_typevar)
     JL_TYPECHK(typevar, symbol, args[0]);
     jl_value_t *lb = (jl_value_t*)jl_bottom_type;
     jl_value_t *ub = (jl_value_t*)jl_any_type;
+    int b = 0;
+    if (args[nargs-1] == jl_true) {
+        b = 1;
+        nargs--;
+    }
     if (nargs > 1) {
         JL_TYPECHK(typevar, type, args[1]);
         if (nargs > 2) {
@@ -1036,7 +1050,9 @@ JL_CALLABLE(jl_f_typevar)
             ub = args[1];
         }
     }
-    return (jl_value_t*)jl_new_typevar((jl_sym_t*)args[0], lb, ub);
+    jl_tvar_t *tv = jl_new_typevar((jl_sym_t*)args[0], lb, ub);
+    tv->bound = b;
+    return (jl_value_t*)tv;
 }
 
 JL_CALLABLE(jl_f_union)
@@ -1127,7 +1143,7 @@ JL_CALLABLE(jl_f_invoke)
     JL_TYPECHK(invoke, tuple, args[1]);
     check_type_tuple((jl_tuple_t*)args[1], jl_gf_name(args[0]), "invoke");
     if (!jl_tuple_subtype(&args[2], nargs-2, &jl_tupleref(args[1],0),
-                          ((jl_tuple_t*)args[1])->length, 1, 0))
+                          jl_tuple_len(args[1]), 1, 0))
         jl_error("invoke: argument type error");
     return jl_gf_invoke((jl_function_t*)args[0],
                         (jl_tuple_t*)args[1], &args[2], nargs-2);

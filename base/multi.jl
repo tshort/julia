@@ -179,10 +179,10 @@ type ProcessGroup
     np::Int
 
     # global references
-    refs::HashTable
+    refs::Dict
 
     function ProcessGroup(myid::Integer, w::Array{Any,1}, locs::Array{Any,1})
-        return new(myid, w, locs, length(w), HashTable())
+        return new(myid, w, locs, length(w), Dict())
     end
 end
 
@@ -192,7 +192,7 @@ function add_workers(PGRP::ProcessGroup, w::Array{Any,1})
     # NOTE: currently only node 1 can add new nodes, since nobody else
     # has the full list of address:port
     newlocs = append(PGRP.locs, locs)
-    sockets = HashTable()
+    sockets = Dict()
     handler = fd->message_handler(fd, sockets)
     for i=1:n
         push(PGRP.workers, w[i])
@@ -269,7 +269,7 @@ end
 
 ## remote refs and core messages: do, call, fetch, wait, ref, put ##
 
-const _jl_client_refs = WeakKeyHashTable()
+const _jl_client_refs = WeakKeyDict()
 
 type RemoteRef
     where::Int
@@ -958,7 +958,7 @@ function start_worker(wrfd)
 
     global const Scheduler = current_task()
 
-    worker_sockets = HashTable()
+    worker_sockets = Dict()
     add_fd_handler(sockfd, fd->accept_handler(fd, worker_sockets))
 
     try
@@ -1028,8 +1028,8 @@ end #func
 function addprocs_ssh(machines, keys)
     if !(isa(keys, Array)) && isa(machines,Array)
         key = keys
-        keys = [ key | x = 1:numel(machines)]
-        cmdargs = { {machines[x],keys[x]} | x = 1:numel(machines)}
+        keys = [ key for x = 1:numel(machines)]
+        cmdargs = { {machines[x],keys[x]} for x = 1:numel(machines)}
     else
         cmdargs = {{machines,keys}}
     end #if/else
@@ -1039,8 +1039,8 @@ end #func
 worker_local_cmd() = `$JULIA_HOME/julia --worker`
 
 addprocs_local(np::Integer) =
-    add_workers(PGRP, start_remote_workers({ "localhost" | i=1:np },
-                                           { worker_local_cmd() | i=1:np }))
+    add_workers(PGRP, start_remote_workers({ "localhost" for i=1:np },
+                                           { worker_local_cmd() for i=1:np }))
 
 
 function start_sge_workers(n)
@@ -1176,7 +1176,7 @@ type GlobalObject
                 midx = i
             end
         end
-        rids = { rr2id(r[i]) | i=1:np }
+        rids = { rr2id(r[i]) for i=1:np }
         for p in procs
             if p != mi
                 remote_do(p, init_GlobalObject, p, procs, rids, initializer)
@@ -1393,7 +1393,7 @@ end
 function pmap_static(f, lsts...)
     np = nprocs()
     n = length(lsts[1])
-    { remote_call((i-1)%np+1, f, map(L->L[i], lsts)...) | i = 1:n }
+    { remote_call((i-1)%np+1, f, map(L->L[i], lsts)...) for i = 1:n }
 end
 
 pmap(f) = f()
@@ -1554,7 +1554,7 @@ end
 
 yield() = yieldto(Scheduler)
 
-const _jl_fd_handlers = HashTable()
+const _jl_fd_handlers = Dict()
 
 add_fd_handler(fd::Int32, H) = (_jl_fd_handlers[fd]=H)
 del_fd_handler(fd::Int32) = del(_jl_fd_handlers, fd)

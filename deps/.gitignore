@@ -1,0 +1,17 @@
+/root
+/llvm-*
+/readline-*
+/pcre-*
+/dsfmt-*
+/openblas-*
+/lapack-*
+/arpack-*
+/fftw-*
+/libunwind-*
+/lighttpd-*
+/Clp-*
+/SuiteSparse-*
+/double-conversion-*
+/gmp-*
+/glpk-*
+/readline62-*

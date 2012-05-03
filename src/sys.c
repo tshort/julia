@@ -7,6 +7,7 @@
 #include <assert.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <sys/sysctl.h>
 #include <errno.h>
 #include <signal.h>
 #include <libgen.h>
@@ -104,33 +105,6 @@ DLLEXPORT jl_value_t *jl_stdout_stream(void)
     return (jl_value_t*)a;
 }
 
-// --- current output stream ---
-
-jl_value_t *jl_current_output_stream_obj(void)
-{
-    return jl_current_task->state.ostream_obj;
-}
-
-DLLEXPORT ios_t *jl_current_output_stream(void)
-{
-    return jl_current_task->state.current_output_stream;
-}
-
-void jl_set_current_output_stream_obj(jl_value_t *v)
-{
-    jl_current_task->state.ostream_obj = v;
-    ios_t *s = (ios_t*)jl_array_data(jl_fieldref(v,0));
-    jl_current_task->state.current_output_stream = s;
-    // if current stream has never been set before, propagate to all
-    // outer contexts.
-    jl_savestate_t *ss = jl_current_task->state.prev;
-    while (ss != NULL && ss->ostream_obj == (jl_value_t*)jl_null) {
-        ss->ostream_obj = v;
-        ss->current_output_stream = s;
-        ss = ss->prev;
-    }
-}
-
 // --- buffer manipulation ---
 
 jl_array_t *jl_takebuf_array(ios_t *s)
@@ -204,6 +178,27 @@ jl_value_t *jl_strerror(int errnum)
 {
     char *str = strerror(errnum);
     return jl_pchar_to_string((char*)str, strlen(str));
+}
+
+// -- get the number of CPU cores --
+
+DLLEXPORT int jl_cpu_cores(void) {
+#if defined(__APPLE__)
+    size_t len = 4;
+    int32_t count;
+    int nm[2] = {CTL_HW, HW_AVAILCPU};
+    sysctl(nm, 2, &count, &len, NULL, 0);
+    if (count < 1) {
+        nm[1] = HW_NCPU;
+        sysctl(nm, 2, &count, &len, NULL, 0);
+        if (count < 1) { count = 1; }
+    }
+    return count;
+#elif defined(__linux)
+    return sysconf(_SC_NPROCESSORS_ONLN);
+#else // test for Windows?
+    return GetActiveProcessorCount(__in WORD GroupNumber);
+#endif
 }
 
 // -- iterating the environment --

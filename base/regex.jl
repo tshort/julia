@@ -38,21 +38,21 @@ macro r_str(pattern, flags...)
     Regex(pattern, options)
 end
 
-function show(re::Regex)
+function show(io, re::Regex)
     imsx = PCRE_CASELESS|PCRE_MULTILINE|PCRE_DOTALL|PCRE_EXTENDED
     if (re.options & ~imsx) == PCRE_UTF8
-        print('r')
-        print_quoted_literal(re.pattern)
-        if (re.options & PCRE_CASELESS ) != 0; print('i'); end
-        if (re.options & PCRE_MULTILINE) != 0; print('m'); end
-        if (re.options & PCRE_DOTALL   ) != 0; print('s'); end
-        if (re.options & PCRE_EXTENDED ) != 0; print('x'); end
+        print(io, 'r')
+        print_quoted_literal(io, re.pattern)
+        if (re.options & PCRE_CASELESS ) != 0; print(io, 'i'); end
+        if (re.options & PCRE_MULTILINE) != 0; print(io, 'm'); end
+        if (re.options & PCRE_DOTALL   ) != 0; print(io, 's'); end
+        if (re.options & PCRE_EXTENDED ) != 0; print(io, 'x'); end
     else
-        print("Regex(")
-        show(re.pattern)
-        print(',')
-        show(re.options)
-        print(')')
+        print(io, "Regex(")
+        show(io, re.pattern)
+        print(io, ',')
+        show(io, re.options)
+        print(io, ')')
     end
 end
 
@@ -66,20 +66,20 @@ type RegexMatch
     offsets::Vector{Int}
 end
 
-function show(m::RegexMatch)
-    print("RegexMatch(")
-    show(m.match)
+function show(io, m::RegexMatch)
+    print(io, "RegexMatch(")
+    show(io, m.match)
     if !isempty(m.captures)
-        print(", ")
+        print(io, ", ")
         for i = 1:length(m.captures)
-            print(i, "=")
-            show(m.captures[i])
+            print(io, i, "=")
+            show(io, m.captures[i])
             if i < length(m.captures)
-                print(", ")
+                print(io, ", ")
             end
         end
     end
-    print(")")
+    print(io, ")")
 end
 
 matches(r::Regex, s::String, o::Integer) =
@@ -125,17 +125,3 @@ next(itr::RegexMatchIterator, m) =
 
 each_match(re::Regex, str::String, ovr::Bool) = RegexMatchIterator(re,str,ovr)
 each_match(re::Regex, str::String)            = RegexMatchIterator(re,str,false)
-
-replace(s::String, regex::Regex, repl::String, limit::Integer) =
-    join(split(s, regex, limit, true), repl)
-
-replace(s::String, regex::Regex, repl::String) =
-    join(split(s, regex, 0, true), repl)
-
-replace(s::String, x::String, repl::String, limit::Integer) =
-    strwidth(x) == 1 ? replace(s, x[1], repl, limit) :
-    replace(s, Regex(strcat("\\Q",x)), repl, limit)
-
-replace(s::String, x::String, repl::String) =
-    strwidth(x) == 1 ? replace(s, x[1], repl) :
-    replace(s, Regex(strcat("\\Q",x)), repl)

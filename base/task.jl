@@ -1,12 +1,12 @@
-show(t::Task) = print("Task")
+show(io, t::Task) = print(io, "Task")
 
 # task-local storage
 function tls()
     t = current_task()
     if is(t.tls, nothing)
-        t.tls = IdTable()
+        t.tls = ObjectIdDict()
     end
-    (t.tls)::IdTable
+    (t.tls)::ObjectIdDict
 end
 
 function tls(key)

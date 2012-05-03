@@ -28,8 +28,10 @@ function repl_show(v::ANY)
     if !(isa(v,Function) && isgeneric(v))
         if isa(v,AbstractVector) && !isa(v,Ranges)
             print(summary(v))
-            println(":")
-            print_matrix(reshape(v,(length(v),1)))
+            if !isempty(v)
+                println(":")
+                print_matrix(OUTPUT_STREAM, reshape(v,(length(v),1)))
+            end
         else
             show(v)
         end
@@ -164,6 +166,8 @@ function process_options(args::Array{Any,1})
         elseif args[i]=="-v" || args[i]=="--version"
             println("julia version $VERSION")
             exit(0)
+        elseif args[i]=="--no-history"
+            # see repl-readline.c
         elseif args[i][1]!='-'
             # program
             repl = false
@@ -187,7 +191,7 @@ function _start()
         ccall(:jl_register_toplevel_eh, Void, ())
         ccall(:jl_start_io_thread, Void, ())
         global const Workqueue = WorkItem[]
-        global const Waiting = HashTable(64)
+        global const Waiting = Dict(64)
 
         if !anyp(a->(a=="--worker"), ARGS)
             # start in "head node" mode

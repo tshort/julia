@@ -42,6 +42,82 @@ function show(S::SparseMatrixCSC)
     end
 end
 
+## Reinterpret and Reshape
+
+function reinterpret{T,Tv,Ti}(::Type{T}, a::SparseMatrixCSC{Tv,Ti})
+    if sizeof(T) != sizeof(Tv)
+        error("SparseMatrixCSC reinterpret is only supported for element types of the same size")
+    end
+    mA,nA = size(a)
+    colptr = copy(a.colptr)
+    rowval = copy(a.rowval)
+    nzval = reinterpret(T, a.nzval)
+    return SparseMatrixCSC{T,Ti}(mA, nA, colptr, rowval, nzval)
+end
+
+function _jl_sparse_compute_reshaped_colptr_and_rowval(colptrS, rowvalS, mS, nS, colptrA, rowvalA, mA, nA)
+    colptrS[1] = 1
+
+    colA = 1
+    colS = 1
+    ptr = 1
+
+    while colA <= nA
+        while ptr <= colptrA[colA+1]-1
+            rowA = rowvalA[ptr]
+            i = (colA - 1) * mA + rowA - 1
+            colSn = div(i, mS) + 1
+            rowS = mod(i, mS) + 1
+            while colS < colSn
+                colptrS[colS+1] = ptr
+                colS += 1
+            end
+            rowvalS[ptr] = rowS
+            ptr += 1
+        end
+        colA += 1
+    end
+    while colS <= nS
+        colptrS[colS+1] = ptr
+        colS += 1
+    end
+end
+
+function reinterpret{T,Tv,Ti,N}(::Type{T}, a::SparseMatrixCSC{Tv,Ti}, dims::NTuple{N,Int})
+    if sizeof(T) != sizeof(Tv)
+        error("SparseMatrixCSC reinterpret is only supported for element types of the same size")
+    end
+    if prod(dims) != numel(a)
+        error("reinterpret: invalid dimensions")
+    end
+    mS,nS = dims
+    mA,nA = size(a)
+    numnz = nnz(a)
+    colptr = Array(Ti, nS+1)
+    rowval = Array(Ti, numnz)
+    nzval = reinterpret(T, a.nzval)
+
+    _jl_sparse_compute_reshaped_colptr_and_rowval(colptr, rowval, mS, nS, a.colptr, a.rowval, mA, nA)
+
+    return SparseMatrixCSC{T,Ti}(mS, nS, colptr, rowval, nzval)
+end
+
+function reshape{Tv,Ti}(a::SparseMatrixCSC{Tv,Ti}, dims::NTuple{2,Int})
+    if prod(dims) != numel(a)
+        error("reshape: invalid dimensions")
+    end
+    mS,nS = dims
+    mA,nA = size(a)
+    numnz = nnz(a)
+    colptr = Array(Ti, nS+1)
+    rowval = Array(Ti, numnz)
+    nzval = a.nzval
+
+    _jl_sparse_compute_reshaped_colptr_and_rowval(colptr, rowval, mS, nS, a.colptr, a.rowval, mA, nA)
+
+    return SparseMatrixCSC{Tv,Ti}(mS, nS, colptr, rowval, nzval)
+end
+
 ## Constructors
 
 function similar(S::SparseMatrixCSC)
@@ -213,24 +289,6 @@ end
 function one{T}(S::SparseMatrixCSC{T})
     m, n = size(S)
     return speye(T, m, n)
-end
-
-## Structure query functions
-
-issym(A::SparseMatrixCSC) = nnz(A - A.') == 0 #'
-
-function istril(A::SparseMatrixCSC)
-    for col = 1:A.n, i = A.colptr[col]:(A.colptr[col]-1)
-        if A.rowval[i] < col && A.nzval[i] != 0; return false; end
-    end
-    return true
-end
-
-function istriu(A::SparseMatrixCSC)
-    for col = 1:A.n, i = A.colptr[col]:(A.colptr[col]-1)
-        if A.rowval[i] > col && A.nzval[i] != 0; return false; end
-    end
-    return true
 end
 
 ## Transpose
@@ -676,8 +734,8 @@ end
 
 function vcat(X::SparseMatrixCSC...)
     num = length(X)
-    mX = [ size(x, 1) | x = X ] 
-    nX = [ size(x, 2) | x = X ]
+    mX = [ size(x, 1) for x in X ] 
+    nX = [ size(x, 2) for x in X ]
     n = nX[1]
     for i = 2 : num
         if nX[i] != n; error("error in vcat: mismatched dimensions"); end
@@ -688,7 +746,7 @@ function vcat(X::SparseMatrixCSC...)
     Ti = promote_type(map(x->eltype(x.rowval), X)...)
 
     colptr = Array(Ti, n + 1)
-    nnzX = [ nnz(x) | x = X ]
+    nnzX = [ nnz(x) for x in X ]
     nnz_res = sum(nnzX)
     rowval = Array(Ti, nnz_res)
     nzval = Array(Tv, nnz_res)
@@ -714,8 +772,8 @@ end
 
 function hcat(X::SparseMatrixCSC...)
     num = length(X)
-    mX = [ size(x, 1) | x = X ]
-    nX = [ size(x, 2) | x = X ]
+    mX = [ size(x, 1) for x in X ]
+    nX = [ size(x, 2) for x in X ]
     m = mX[1]
     for i = 2 : num
         if mX[i] != m; error("error in hcat: mismatched dimensions"); end
@@ -726,7 +784,7 @@ function hcat(X::SparseMatrixCSC...)
     Ti = promote_type(map(x->eltype(x.rowval), X)...)
 
     colptr = Array(Ti, n + 1)
-    nnzX = [ nnz(x) | x = X ]
+    nnzX = [ nnz(x) for x in X ]
     nnz_res = sum(nnzX)
     rowval = Array(Ti, nnz_res)
     nzval = Array(Tv, nnz_res)

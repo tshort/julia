@@ -1,14 +1,14 @@
 type Set{T}
-    hash::HashTable{T,Bool}
+    hash::Dict{T,Bool}
 
-    Set() = new(HashTable{T,Bool}())
-    Set(x...) = add_each(new(HashTable{T,Bool}(length(x))), x)
+    Set() = new(Dict{T,Bool}())
+    Set(x...) = add_each(new(Dict{T,Bool}(length(x))), x)
 end
 Set() = Set{Any}()
 Set(x...) = Set{Any}(x...)
 Set{T}(x::T...) = Set{T}(x...)
 
-show(s::Set) = (show(typeof(s)); show_comma_array(s,'(',')'))
+show(io, s::Set) = (show(io, typeof(s)); show_comma_array(io, s,'(',')'))
 
 isempty(s::Set) = isempty(s.hash)
 length(s::Set)  = length(s.hash)
