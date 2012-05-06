@@ -8,7 +8,7 @@ DSFMT_VER = 2.1
 OPENBLAS_VER = v0.1.1
 LAPACK_VER = 3.4.1
 ARPACK_VER = 3.1.0
-FFTW_VER = 3.3.1
+FFTW_VER = 3.3.2
 SUITESPARSE_VER = 3.7.0
 CLP_VER = 1.14.5
 UNWIND_VER = 1.0.1
@@ -45,6 +45,10 @@ endif
 
 ifeq ($(USE_SYSTEM_LLVM), 0)
 LIBS += llvm
+endif
+
+ifeq ($(USE_SYSTEM_LIGHTTPD), 0)
+LIBS += lighttpd
 endif
 
 ifeq ($(OS),WINNT)
@@ -97,10 +101,12 @@ distclean: $(addprefix distclean-, $(LIBS))
 	rm -rf root
 
 ## PATHS ##
-$(USR): 
+$(USR):
 	mkdir -p $(USR)/lib
 	mkdir -p $(USR)/include
 	mkdir -p $(USR)/bin
+	mkdir -p $(USR)/share
+	mkdir -p $(USR)/etc
 
 ## LLVM ##
 
@@ -412,7 +418,7 @@ openblas-$(OPENBLAS_VER)/Makefile: openblas-$(OPENBLAS_VER).tar.gz
 	perl -i -ple 's/^\s*(EXTRALIB\s*\+=\s*-lSystemStubs)\s*$$/# $$1/g' $@.system
 	touch $@
 $(OPENBLAS_OBJ_SOURCE): openblas-$(OPENBLAS_VER)/Makefile
-	$(MAKE) -C openblas-$(OPENBLAS_VER) DYNAMIC_ARCH=1 USE_THREAD=1 CC=$(CC) FC=$(FC)  FFLAGS="$(FFLAGS) $(JFFLAGS)" TARGET=$(TARGET_OPENBLAS_ARCH)
+	$(MAKE) -C openblas-$(OPENBLAS_VER) DYNAMIC_ARCH=1 USE_THREAD=0 CC=$(CC) FC=$(FC)  FFLAGS="$(FFLAGS) $(JFFLAGS)" TARGET=$(TARGET_OPENBLAS_ARCH)
 	cp -f openblas-$(OPENBLAS_VER)/libopenblas.$(SHLIB_EXT) $(USRLIB)
 	$(JULIAHOME)/deps/install-name-$(OS).sh libopenblas.$(SHLIB_EXT) $(USRLIB)/libopenblas.$(SHLIB_EXT)
 
@@ -688,10 +694,16 @@ distclean-unwind:
 
 ## GNU LIGHTTPD ##
 
+ifeq ($(USE_SYSTEM_LIGHTTPD), 0)
 LIGHTTPD_OBJ_TARGET = $(USR)/sbin/lighttpd
+else
+LIGHTTPD_OBJ_TARGET = 
+endif
 
 compile-lighttpd: install-lighttpd
-install-lighttpd: $(LIGHTTPD_OBJ_TARGET)
+install-lighttpd: $(LIGHTTPD_OBJ_TARGET) lighttpd.conf
+	mkdir -p $(USR)/etc
+	cp -f lighttpd.conf $(USR)/etc/lighttpd.conf
 
 lighttpd-$(LIGHTTPD_VER).tar.gz:
 	$(WGET) http://download.lighttpd.net/lighttpd/releases-1.4.x/lighttpd-$(LIGHTTPD_VER).tar.gz

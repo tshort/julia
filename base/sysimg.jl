@@ -29,7 +29,7 @@ include("abstractarray.jl")
 include("subarray.jl")
 include("array.jl")
 include("intset.jl")
-include("table.jl")
+include("dict.jl")
 include("set.jl")
 
 # compiler
@@ -38,9 +38,9 @@ include("inference.jl")
 # I/O, strings & printing
 include("io.jl")
 include("char.jl")
-include("string.jl")
 include("ascii.jl")
 include("utf8.jl")
+include("string.jl")
 include("regex.jl")
 include("show.jl")
 include("grisu.jl")
@@ -83,6 +83,8 @@ include("util.jl")
 include("datafmt.jl")
 
 ## Load optional external libraries
+
+include("build_h.jl")
 
 # linear algebra
 include("linalg.jl")
