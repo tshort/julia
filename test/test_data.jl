@@ -46,7 +46,7 @@ test_group("DataVec to something else")
 @test all(convert(Int, dvint2) == [5:8])
 @test all([i+1 | i=dvint2] == [6:9]) # iterator test
 @test all([length(x)::Int | x=dvstr] == [3,3,1,4])
-@test print_to_string(show, dvint) == "[1,2,NA,4]"
+@test sshow(dvint) == "[1,2,NA,4]"
 
 test_group("DataVec Filter and Replace")
 @test naFilter(dvint) == dvint
@@ -109,5 +109,5 @@ test_group("ref")
 # lots more to do
 
 test_group("show")
-@test print_to_string(show, df1) == "   Ints Strs\na     1  one\nb     2  two\nc    NA   NA\nd     4 four\n"
+@test sshow(df1) == "   Ints Strs\na     1  one\nb     2  two\nc    NA   NA\nd     4 four\n"
 
