@@ -22,6 +22,12 @@ dvstr = DataVec["one", "two", NA, "four"]
 
 @test DataVec(dvint) == dvint 
 
+test_group("PooledDataVec creation")
+pdvstr = PooledDataVec["one", "one", "two", "two", NA, "one", "one"]
+@test typeof(pdvstr) == PooledDataVec{ASCIIString}
+@test throws_exception(PooledDataVec["one", "one", 9], Exception)
+@test PooledDataVec(pdvstr) == pdvstr
+
 test_group("DataVec access")
 @test dvint[1] == 1
 @test isna(dvint[3])
@@ -30,15 +36,31 @@ test_group("DataVec access")
 @test dvstr[[1,2,1,4]] == DataVec["one", "two", "one", "four"]
 @test dvstr[[1,2,1,3]] == DataVec["one", "two", "one", NA] 
 
+test_group("PooledDataVec access")
+@test pdvstr[1] == "one"
+@test isna(pdvstr[5])
+@test pdvstr[1:3] == DataVec["one", "one", "two"]
+@test pdvstr[[true, false, true, false, true, false, true]] == DataVec["one", "two", NA, "one"]
+@test pdvstr[[1,3,1,2]] == DataVec["one", "two", "one", "one"]
+
 test_group("DataVec methods")
 @test size(dvint) == (4,)
 @test length(dvint) == 4
 @test sum(isna(dvint)) == 1
 @test eltype(dvint) == Int64
 
+test_group("PooledDataVec methods")
+@test size(pdvstr) == (7,)
+@test length(pdvstr) == 7
+@test sum(isna(pdvstr)) == 1
+@test eltype(pdvstr) == ASCIIString
+
 test_group("DataVec operations")
 @test dvint+1 == DataVec([2,3,4,5], [false, false, true, false])
 @test dvint.*2 == DataVec[2,4,NA,8]
+
+test_group("PooledDataVec operations")
+# TODO
 
 test_group("DataVec to something else")
 @test all(nafilter(dvint) == [1,2,4]) # TODO: test.jl should grok all(a == b)
@@ -48,11 +70,21 @@ test_group("DataVec to something else")
 @test all([length(x)::Int | x=dvstr] == [3,3,1,4])
 @test sshow(dvint) == "[1,2,NA,4]"
 
+test_group("PooledDataVec to something else")
+#@test all(nafilter(pdvstr) == ["one", "one", "two", "two", "one", "one"])
+#@test all(nareplace(pdvstr, "nine") == ["one", "one", "two", "two", "nine", "one", "one"])
+@test all([length(i)::Int for i in pdvstr] == [3, 3, 3, 3, 1, 3, 3])
+@test string(pdvstr[1:3]) == "[\"one\",\"one\",\"two\"]"
+
 test_group("DataVec Filter and Replace")
 @test naFilter(dvint) == dvint
 @test naReplace(dvint,7) == dvint
 @test sum(naFilter(dvint)) == 7
 @test sum(naReplace(dvint,7)) == 14
+
+test_group("PooledDataVec Filter and Replace")
+@test reduce(strcat, "", naFilter(pdvstr)) == "oneonetwotwooneone"
+@test reduce(strcat, "", naReplace(pdvstr,"!")) == "oneonetwotwo!oneone"
 
 test_group("DataVec assignment")
 assigntest = DataVec[1, 2, NA, 4]
@@ -79,6 +111,10 @@ assigntest[[true,false,true,false]] = NA
 assigntest[1] = 1
 assigntest[2:4] = NA
 @test assigntest == DataVec[1, NA, NA, NA]
+
+test_group("PooledDataVec assignment")
+@test (pdvstr[2] = "three") == "three" 
+@test pdvstr[2] == "three"
 
 test_context("DataFrames")
 
