@@ -115,6 +115,32 @@ assigntest[2:4] = NA
 test_group("PooledDataVec assignment")
 @test (pdvstr[2] = "three") == "three" 
 @test pdvstr[2] == "three"
+@test (pdvstr[[1,2]] = "two") == DataVec["two", "two"]
+@test pdvstr[2] == "two"
+pdvstr2 = PooledDataVec["one", "one", "two", "two"]
+@test (pdvstr2[[true, false, true, false]] = "three") == DataVec["three", "three"]
+@test pdvstr2[1] == "three"
+@test (pdvstr2[[false, true, false, true]] = ["four", "five"]) == DataVec["four", "five"]
+@test pdvstr2[3:4] == DataVec["three", "five"]
+pdvstr2 = PooledDataVec["one", "one", "two", "two"]
+@test (pdvstr2[2:3] = "three") == DataVec["three"]
+@test pdvstr2[3:4] == DataVec["three", "two"]
+@test (pdvstr2[2:3] = ["four", "five"]) == DataVec["four", "five"]
+@test pdvstr2[1:2] == DataVec["one", "four"]
+pdvstr2 = PooledDataVec["one", "one", "two", "two", "three"]
+@test isna(begin pdvstr2[1] = NA end)
+@test all(isna(begin pdvstr2[[1,2]] = NA end))
+@test all(isna(begin pdvstr2[[false, false, true, false, false]] = NA end))
+@test all(isna(begin pdvstr2[4:5] = NA end))
+@test all(isna(pdvstr2))
+
+test_group("PooledDataVec replace!")
+pdvstr2 = PooledDataVec["one", "one", "two", "two", "three"]
+@test replace!(pdvstr2, "two", "four") == "four"
+@test replace!(pdvstr2, "three", "four") == "four"
+@test isna(replace!(pdvstr2, "one", NA))
+@test replace!(pdvstr2, NA, "five") == "five"
+@test pdvstr2 == DataVec["five", "five", "four", "four", "four"]
 
 test_context("DataFrames")
 
