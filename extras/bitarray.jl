@@ -260,6 +260,7 @@ end
 
 ## Conversions ##
 
+convert{T,S,n}(::Type{Array{T}}, B::BitArray{S,n}) = convert(Array{T,n},B)
 function convert{T,S,n}(::Type{Array{T,n}}, B::BitArray{S,n})
     A = Array(T, size(B))
     for i = 1:length(A)
@@ -268,6 +269,7 @@ function convert{T,S,n}(::Type{Array{T,n}}, B::BitArray{S,n})
     return A
 end
 
+convert{T,S,n}(::Type{BitArray{S}}, A::AbstractArray{T,n}) = convert(BitArray{S,n},A)
 function convert{T,S,n}(::Type{BitArray{S,n}}, A::AbstractArray{T,n})
     B = BitArray(S, size(A))
     for i = 1:length(B)
@@ -985,7 +987,7 @@ end
 ## Binary comparison operators ##
 
 # note: these return BitArray{Bool}
-for f in (:(==), :!=, :<, :<=)
+for (f,t) in ((:(==),:Number), (:!=,:Number), (:<,:Real), (:<=,:Real))
     @eval begin
         function ($f)(A::BitArray, B::BitArray)
             F = BitArray(Bool, promote_shape(size(A),size(B)))
@@ -994,14 +996,14 @@ for f in (:(==), :!=, :<, :<=)
             end
             return F
         end
-        function ($f)(x::Number, B::BitArray)
+        function ($f)(x::($t), B::BitArray)
             F = similar(B, Bool)
             for i = 1:numel(F)
                 F[i] = ($f)(x, B[i])
             end
             return F
         end
-        function ($f)(A::BitArray, x::Number)
+        function ($f)(A::BitArray, x::($t))
             F = similar(A, Bool)
             for i = 1:numel(F)
                 F[i] = ($f)(A[i], x)

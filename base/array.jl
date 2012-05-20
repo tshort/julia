@@ -97,7 +97,7 @@ function fill!{T<:Union(Int8,Uint8)}(a::Array{T}, x::Integer)
 end
 function fill!{T<:Union(Integer,Float)}(a::Array{T}, x)
     if isa(T,BitsKind) && convert(T,x) == 0
-        ccall(:bzero, Void, (Ptr{T}, Int), a, length(a)*sizeof(T))
+        ccall(:memset, Ptr{T}, (Ptr{T}, Int32, Int32), a,0,length(a)*sizeof(T))
     else
         for i = 1:numel(a)
             a[i] = x
@@ -156,7 +156,9 @@ logspace(start::Real, stop::Real) = logspace(start, stop, 50)
 
 ## Conversions ##
 
+convert{T,n}(::Type{Array{T}}, x::Array{T,n}) = x
 convert{T,n}(::Type{Array{T,n}}, x::Array{T,n}) = x
+convert{T,n,S}(::Type{Array{T}}, x::Array{S,n}) = convert(Array{T,n}, x)
 convert{T,n,S}(::Type{Array{T,n}}, x::Array{S,n}) = copy_to(similar(x,T), x)
 
 ## Indexing: ref ##
@@ -703,32 +705,32 @@ end
 
 for (f,isf) in ((:(==),:isequal), (:(<), :isless))
     @eval begin
-        function ($f)(A::Array, B::Array)
+        function ($f)(A::AbstractArray, B::AbstractArray)
             F = Array(Bool, promote_shape(size(A),size(B)))
             for i = 1:numel(B)
                 F[i] = ($isf)(A[i], B[i])
             end
             return F
         end
-        ($f)(A, B::Array) =
+        ($f)(A, B::AbstractArray) =
             reshape([ ($isf)(A, B[i]) for i=1:length(B)], size(B))
-        ($f)(A::Array, B) =
+        ($f)(A::AbstractArray, B) =
             reshape([ ($isf)(A[i], B) for i=1:length(A)], size(A))
     end
 end
 
 for (f,isf) in ((:(!=),:isequal), (:(<=), :isless))
     @eval begin
-        function ($f)(A::Array, B::Array)
+        function ($f)(A::AbstractArray, B::AbstractArray)
             F = Array(Bool, promote_shape(size(A),size(B)))
             for i = 1:numel(B)
                 F[i] = !($isf)(B[i], A[i])
             end
             return F
         end
-        ($f)(A, B::Array) =
+        ($f)(A, B::AbstractArray) =
             reshape([ !($isf)(B[i], A) for i=1:length(B)], size(B))
-        ($f)(A::Array, B) =
+        ($f)(A::AbstractArray, B) =
             reshape([ !($isf)(B, A[i]) for i=1:length(A)], size(A))
     end
 end
