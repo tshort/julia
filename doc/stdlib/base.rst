@@ -540,9 +540,13 @@ Text I/O
 
    Show x, printing all elements of arrays
 
-.. function:: dump(x)
+.. function:: dump(x, n)
 
-   Write a thorough text representation of a value to the current output stream.
+   Write a structured, tree-like representation of a value to the current output stream. ``n`` is the depth of traversal, defaulting to five if not specified. Mimics R's ``str`` function.
+
+.. function:: idump(x, n)
+
+   Like ``dump``, but shows the internal representation of a value. Package writers should not normally write methods for ``idump``. 
 
 .. function:: readall(stream)
 
