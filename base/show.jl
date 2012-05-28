@@ -526,8 +526,14 @@ function dump(io::IOStream, x, n::Int, indent)
         println(io)
         if n > 0 
             for field in T.names
-                print(io, indent, "  ", field, ": ")
-                dump(io, getfield(x, field), n - 1, strcat(indent, "  "))
+                if field != symbol("")    # prevents segfault if symbol is blank
+                    print(io, indent, "  ", field, ": ")
+                    try
+                        dump(io, getfield(x, field), n - 1, strcat(indent, "  "))
+                    catch
+                        println(io)
+                    end
+                end
             end
         end
     else
@@ -545,7 +551,7 @@ function dump(io::IOStream, x::Array{Any}, n::Int, indent)
 end
 dump(io::IOStream, x::AbstractKind, n::Int, indent) = println(io, typeof(x), " ", x)
 dump(io::IOStream, x::Symbol, n::Int, indent) = println(io, typeof(x), " ", x)
-dump(io::IOStream, x::Function, n::Int, indent) = println(io, typeof(x), " ", x)
+dump(io::IOStream, x::Function, n::Int, indent) = println(io, x)
 dump(io::IOStream, x::Type, n::Int, indent) = println(io, typeof(x), " ", x)
 dump(io::IOStream, x::Array, n::Int, indent) = println(io, "Array($(eltype(x)),$(size(x)))", " ", x[1:min(4,length(x))])
 dump(io::IOStream, x) = dump(io, x, 5, "")  # default is 5 levels
@@ -584,8 +590,14 @@ function idump(io::IOStream, x, n::Int, indent)
         println(io)
         if n > 0
             for field in T.names
-                print(io, indent, "  ", field, ": ")
-                idump(io, getfield(x, field), n - 1, strcat(indent, "  "))
+                if field != symbol("")
+                    print(io, indent, "  ", field, ": ")
+                    try
+                        idump(io, getfield(x, field), n - 1, strcat(indent, "  "))
+                    catch
+                        println(io)
+                    end
+                end
             end
         end
     else
@@ -601,7 +613,7 @@ function idump(io::IOStream, x::Array{Any}, n::Int, indent)
 end
 idump(io::IOStream, x::AbstractKind, n::Int, indent) = println(io, typeof(x), " ", x)
 idump(io::IOStream, x::Symbol, n::Int, indent) = println(io, typeof(x), " ", x)
-idump(io::IOStream, x::Function, n::Int, indent) = println(io, typeof(x), " ", x)
+idump(io::IOStream, x::Function, n::Int, indent) = println(io, x)
 idump(io::IOStream, x::Array, n::Int, indent) = println(io, "Array($(eltype(x)),$(size(x)))", " ", x[1:min(4,length(x))])
 idump(io::IOStream, x) = idump(io, x, 5, "")  # default is 5 levels
 idump(io::IOStream, x, n::Int) = idump(io, x, n, "")
