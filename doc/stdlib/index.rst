@@ -8,10 +8,21 @@
 :Release: |version|
 :Date: |today|
 
-Contents:
+*********
+Built-ins
+*********
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
 
    base
+
+******
+Extras
+******
+
+.. toctree::
+   :maxdepth: 1
+
+   specfun
 

@@ -22,6 +22,8 @@ Regex(p::String, s::Bool)    = Regex(p, 0, s)
 Regex(p::String, o::Integer) = Regex(p, o, false)
 Regex(p::String)             = Regex(p, 0, false)
 
+copy(r::Regex) = r
+
 # TODO: make sure thing are escaped in a way PCRE
 # likes so that Julia all the Julia string quoting
 # constructs are correctly handled.
@@ -125,3 +127,8 @@ next(itr::RegexMatchIterator, m) =
 
 each_match(re::Regex, str::String, ovr::Bool) = RegexMatchIterator(re,str,ovr)
 each_match(re::Regex, str::String)            = RegexMatchIterator(re,str,false)
+
+# miscellaneous methods that depend on Regex being defined
+
+filter!(r::Regex, d::Dict) = filter!((k,v)->matches(r,k),d)
+filter(r::Regex,  d::Dict) = filter!(r,copy(d))

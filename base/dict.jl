@@ -44,6 +44,16 @@ function values(T::Type, a::Associative)
 end
 values{K,V}(a::Associative{K,V}) = values(V,a)
 
+function pairs(T::Union(Type,(Type,Type)), a::Associative)
+    i = 0
+    pairz = Array(T,length(a))
+    for (k,v) in a
+        pairz[i+=1] = (k,v)
+    end
+    return pairz
+end
+pairs{K,V}(a::Associative{K,V}) = pairs((K,V),a)
+
 # some support functions
 
 function _tablesz(i::Integer)
@@ -132,8 +142,6 @@ hash(x::Integer) = _jl_hash64(uint64(x))
     isnan(x) ? $_jl_hash64(NaN) : _jl_hash64(float64(x))
 end
 
-hash(s::Symbol) = ccall(:jl_hash_symbol, Uint, (Any,), s)
-
 function hash(t::Tuple)
     h = int(0)
     for i=1:length(t)
@@ -150,7 +158,7 @@ function hash(a::Array)
     return uint(h)
 end
 
-hash(x::Any) = uid(x)
+hash(x::ANY) = uid(x)
 
 if WORD_SIZE == 64
     hash(s::ByteString) =
@@ -190,6 +198,8 @@ type Dict{K,V} <: Associative{K,V}
         end
         return h
     end
+    global copy
+    copy(d::Dict{K,V}) = new(copy(d.keys),copy(d.vals),d.ndel,d.deleter)
 end
 Dict() = Dict(0)
 Dict(n::Integer) = Dict{Any,Any}(n)
@@ -203,7 +213,7 @@ function serialize(s, t::Dict)
     end
 end
 
-function deserialize(s, T::Type{Dict})
+function deserialize{K,V}(s, T::Type{Dict{K,V}})
     n = read(s, Int32)
     t = T(n)
     for i = 1:n
@@ -376,6 +386,26 @@ function length(t::Dict)
     end
     return n
 end
+
+function merge!(d::Dict, others::Dict...)
+    for other in others
+        for (k,v) in other
+            d[k] = v
+        end
+    end
+    return d
+end
+merge(d::Dict, others::Dict...) = merge!(copy(d), others...)
+
+function filter!(f::Function, d::Dict)
+    for (k,v) in d
+        if !f(k,v)
+            del(d,k)
+        end
+    end
+    return d
+end
+filter(f::Function, d::Dict) = filter!(f,copy(d))
 
 # weak key dictionaries
 

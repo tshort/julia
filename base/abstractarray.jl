@@ -302,6 +302,7 @@ end
 # 1-d indexing is assumed defined on subtypes
 assign(t::AbstractArray, x, i::Integer) =
     error("assign not defined for ",typeof(t))
+assign(t::AbstractArray, x) = throw(MethodError(assign, (t, x)))
 
 assign(t::AbstractArray, x, i::Real)          = (t[iround(i)] = x)
 assign(t::AbstractArray, x, i::Real, j::Real) = (t[iround(i),iround(j)] = x)
@@ -639,6 +640,30 @@ function isless(A::AbstractArray, B::AbstractArray)
         end
     end
     return nA < nB
+end
+
+function (==)(A::AbstractArray, B::AbstractArray)
+    if size(A) != size(B)
+        return false
+    end
+    for i = 1:numel(A)
+        if !(A[i]==B[i])
+            return false
+        end
+    end
+    return true
+end
+
+function (!=)(A::AbstractArray, B::AbstractArray)
+    if size(A) != size(B)
+        return true
+    end
+    for i = 1:numel(A)
+        if A[i]!=B[i]
+            return true
+        end
+    end
+    return false
 end
 
 for (f, op) = ((:cumsum, :+), (:cumprod, :*) )

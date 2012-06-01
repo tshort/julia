@@ -6,7 +6,7 @@ print(io::IOStream, s::Symbol) = ccall(:jl_print_symbol, Void, (Ptr{Void}, Any,)
 show(io, x) = ccall(:jl_show_any, Void, (Any, Any,), io, x)
 
 showcompact(io, x) = show(io, x)
-showcompact(x)     = show(x)
+showcompact(x)     = showcompact(OUTPUT_STREAM::IOStream, x)
 
 show(io, s::Symbol) = print(io, s)
 show(io, tn::TypeName) = show(io, tn.name)
@@ -32,8 +32,8 @@ function show(io, l::LambdaStaticData)
     print(io, ")")
 end
 
-function show_delim_array(io, itr, open, delim, close, delim_one)
-    print(io, open)
+function show_delim_array(io, itr, op, delim, cl, delim_one)
+    print(io, op)
     state = start(itr)
     newline = true
     first = true
@@ -60,7 +60,7 @@ function show_delim_array(io, itr, open, delim, close, delim_one)
             end
 	end
     end
-    print(io, close)
+    print(io, cl)
 end
 
 show_comma_array(io, itr, o, c) = show_delim_array(io, itr, o, ',', c, false)
@@ -247,6 +247,8 @@ function dump(io, x)
         show(io, x)
     end
 end
+
+showall(x) = showall(OUTPUT_STREAM::IOStream, x)
 
 function showall{T}(io, a::AbstractArray{T,1})
     if is(T,Any)
@@ -479,7 +481,15 @@ function whos()
     end
 end
 
-show{T}(io, x::AbstractArray{T,0}) = (println(io, summary(x),":"); show(io, x[]))
+function show{T}(io, x::AbstractArray{T,0})
+    println(io, summary(x),":")
+    sx = _jl_undef_ref_str
+    try
+        sx = sprint(showcompact, x[])
+    end
+    print(io, sx)
+end
+
 function show(io, X::AbstractArray)
     print(io, summary(X))
     if !isempty(X)

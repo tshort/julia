@@ -3,7 +3,7 @@
 #include <assert.h>
 #include <sys/stat.h>
 
-#if defined(__linux) || defined(__FreeBSD__)
+#if defined(__linux__) || defined(__FreeBSD__)
 #include <unistd.h>
 #include <dlfcn.h>
 #define GET_FUNCTION_FROM_MODULE dlsym
@@ -71,9 +71,9 @@ uv_lib_t *jl_load_dynamic_library(char *fname)
         handle->handle = NULL;
         if (modname[0] != '/') {
             if (julia_home) {
-                /* try julia_home/usr/lib */
+                /* try julia_home/../lib */
                 strncpy(path, julia_home, PATHBUF-1);
-                strncat(path, "/usr/lib/", PATHBUF-1-strlen(path));
+                strncat(path, "/../lib/", PATHBUF-1-strlen(path));
                 strncat(path, modname, PATHBUF-1-strlen(path));
                 strncat(path, ext, PATHBUF-1-strlen(path));
                 error = uv_dlopen(path, handle);

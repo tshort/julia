@@ -34,15 +34,6 @@ end
 
 _winston_config = WinstonConfig()
 
-function in_repl()
-    # XXX:fixme
-    try
-        s = string(_jl_repl_channel)
-        return true
-    end
-    return false
-end
-
 begin
     global config_value
     global config_options
@@ -242,6 +233,8 @@ type BoundingBox
         end
     end
 end
+
+copy(bb::BoundingBox) = BoundingBox(bb.p0, bb.p1)
 
 function is_null( self::BoundingBox )
     return self.p0 == nothing || self.p1 == nothing
@@ -1155,7 +1148,7 @@ function _ticklist_linear( lo, hi, sep, origin )
 end
 
 function _pow10(x)
-    return pow(10,x)
+    return pow(10.0,x)
 end
 
 function _ticks_default_linear( lim )
@@ -1170,7 +1163,7 @@ function _ticks_default_linear( lim )
         x = 10
     end
 
-    major_div = x * pow(10, b)
+    major_div = x * pow(10.0, b)
     return _ticklist_linear( lim[1], lim[2], major_div )
 end
 
@@ -2352,8 +2345,8 @@ end
 
 # PlotContainer ---------------------------------------------------------------
 
-function show(self::PlotContainer)
-    print(typeof(self),"()")
+function show(io::IO, self::PlotContainer)
+    print(io,typeof(self),"()")
 end
 
 function interior( self::PlotContainer, device::Renderer, exterior_bbox::BoundingBox )
@@ -2448,7 +2441,7 @@ function x11( self::PlotContainer, args...)
     opts = args2dict(args...)
     width = has(opts,"width") ? opts["width"] : config_value("window","width")
     height = has(opts,"height") ? opts["height"] : config_value("window","height")
-    reuse_window = in_repl() && config_value("window","reuse")
+    reuse_window = isinteractive() && config_value("window","reuse")
     device = ScreenRenderer( reuse_window, width, height )
     page_compose( self, device )
 end
@@ -3036,8 +3029,8 @@ end
 
 # PlotComponent ---------------------------------------------------------------
 
-function show(self::PlotComponent)
-    print(typeof(self),"()")
+function show(io::IO, self::PlotComponent)
+    print(io,typeof(self),"()")
 end
 
 function limits( self::PlotComponent )

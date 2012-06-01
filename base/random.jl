@@ -76,13 +76,12 @@ srand(seed::Int32) = srand(uint32(seed))
 srand(seed::Int64) = srand(uint64(seed))
 
 function srand(filename::String, n::Integer)
-    fd = open(filename)
-    a = Array(Uint32, int(n))
-    read(fd, a)
-    srand(a)
-    close(fd)
+    open(filename) do io
+        a = Array(Uint32, int(n))
+        read(io, a)
+        srand(a)
+    end
 end
-
 srand(filename::String) = srand(filename, 4)
 
 ## rand()
@@ -211,52 +210,80 @@ const exprnd = randexp
 
 ## randg()
 
-# A simple method for generating gamma variables - Marsaglia and Tsang
+# A simple method for generating gamma variables - Marsaglia and Tsang (2000)
 # http://www.cparity.com/projects/AcmClassification/samples/358414.pdf
 # Page 369
 
-function randg(a::Real)
-    d = a - 1.0/3.0
-    c = 1.0 / sqrt(9*d)
-    while(true)
-        x = randn()
-        v = 1.0 + c*x
-        while (v <= 0.0)
+# basic simulation loop for pre-computed d and c
+function randg2(d::Float64, c::Float64) 
+    while true
+        x = v = 0.0
+        while v <= 0.0
             x = randn()
             v = 1.0 + c*x
         end
-        v = v*v*v
+        v = v^3
         U = rand()
-        x2 = x*x
-        if U < 1.0 - 0.331*x2*x2; return d*v; end
-        if log(U) < 0.5*x2 + d*(1.0 - v + log(v)); return d*v; end
+        x2 = x^2
+        if U < 1.0-0.331*x2^2 || log(U) < 0.5*x2+d*(1.0-v+log(v))
+            return d*v
+        end
     end
 end
 
-@_jl_rand_matrix_builder_1arg Float64 randg
+function randg!(a::Real, A::Array{Float64})
+    if a <= 0. error("shape parameter a must be > 0") end
+    d = (a < 1. ? a + 1 : a) - 1.0/3.0
+    c = 1.0/sqrt(9.0d)
+    for i in 1:numel(A) A[i] = randg2(d, c) end
+    if a < 1.
+        ainv = 1./a
+        for i in 1:numel(A) A[i] *= rand()^ainv end
+    end
+    A
+end
+function randg(a::Real)
+    if a <= 0. error("shape parameter a must be > 0") end
+    d = (a < 1. ? a + 1 : a) - 1.0/3.0
+    randg2(d, 1.0/sqrt(9.0d)) * (a > 1. ? 1. : rand()^(1./a))
+end
+randg(a::Real, dims::Dims) = randg!(a, Array(Float64, dims))
+randg(a::Real, dims::Int...) = randg(a, dims)
 
-# randchi2()
-
-randchi2(v) = 2*randg(v/2)
-@_jl_rand_matrix_builder_1arg Float64 randchi2
-
+## randchi2 - the distribution chi^2(df) is 2*gamma(df/2)
+## for integer n, a chi^2(n) is the sum of n squared standard normals
+function randchi2!(df::Real, A::Array{Float64})
+    if df == 1
+        for i in 1:numel(A)
+            A[i] = randn()^2
+            end
+        return A
+    end
+    d = df >= 2 ? df/2. - 1.0/3.0 : error("require degrees of freedom df >= 2")
+    c = 1.0/sqrt(9.0d)
+    for i in 1:numel(A) A[i] = 2.randg2(d,c) end
+    A
+end
+randchi2(df::Real) = df == 1 ? randn()^2 : 2.randg(df/2.)
+randchi2(df::Real, dims::Dims) = randchi2!(df, Array(Float64, dims))
+randchi2(df::Real, dims::Int...) = randchi2(df, dims)
 const chi2rnd = randchi2 # alias chi2rnd
 
-# From John D. Cook
-# http://www.johndcook.com/julia_rng.html
-function randbeta(a, b)
-    if a <= 0 || b <= 0
-        error("Beta parameters must be positive")
+function randbeta!(alpha::Real, beta::Real, A::Array{Float64})
+    d1 = alpha >= 1 ? alpha - 1.0/3.0 : error("require alpha >= 1")
+    c1 = 1.0/sqrt(9.0d1)
+    d2 = beta >= 1 ? beta - 1.0/3.0 : error("require beta >= 1")
+    c2 = 1.0/sqrt(9.0d2)
+    for i in 1:numel(A)
+       u = randg2(d1,c1)
+       A[i] = u/(u + randg2(d2,c2))
     end
-    
-    ## There are more efficient methods for generating beta samples.
-    ## However such methods are a little more efficient and much more complicated.
-    ## For an explanation of why the following method works, see
-    ## http://www.johndcook.com/distribution_chart.html#gamma_beta
-
-    u = randg(a)
-    v = randg(b)
-    return u / (u + v)
+    A
 end
 
+randbeta(alpha::Real, beta::Real) = (u=randg(alpha); u/(u + randg(beta)))
+function randbeta(alpha::Real, beta::Real, dims::Dims)
+    randbeta!(alpha, beta, Array(Float64, dims))
+end
+randbeta(alpha::Real, beta::Real, dims::Int...) = randbeta(alpha, beta, dims)
 const betarnd = randbeta

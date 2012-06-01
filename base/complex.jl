@@ -265,9 +265,7 @@ function cis(z::Complex)
     complex(v*cos(real(z)), v*sin(real(z)))
 end
 
-angle(z::Real) = atan2(zero(z), z)
 angle(z::Complex) = atan2(imag(z), real(z))
-@vectorize_1arg Number angle
 
 function sin(z::Complex)
     u = exp(imag(z))
@@ -294,8 +292,12 @@ function log(z::Complex)
         r = ar/ai
         re = log(ai) + 0.5*log1p(r*r)
     else
-        r = ai/ar
-        re = log(ar) + 0.5*log1p(r*r)
+        if ar == 0
+            re = -inv(ar)
+        else
+            r = ai/ar
+            re = log(ar) + 0.5*log1p(r*r)
+        end
     end
     complex(re, atan2(imag(z), real(z)))
 end

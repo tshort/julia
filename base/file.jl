@@ -3,18 +3,12 @@
 function cwd()
     b = Array(Uint8,1024)
     p = ccall(:getcwd, Ptr{Uint8}, (Ptr{Uint8}, Uint), b, length(b))
-    if p == C_NULL
-        error("current directory has been deleted (or has a really long name)")
-    end
+    system_error("cwd", p==C_NULL)
     cstring(p)
 end
 
-function cd(dir::String)
-    if ccall(:chdir, Int32, (Ptr{Uint8},), dir) == -1
-        throw(SystemError("cd($dir)"))
-    end
-    cwd()
-end
+cd(dir::String) = (system_error("cd", ccall(:chdir, Int32, (Ptr{Uint8},), dir)==-1); cwd())
+cd() = cd(ENV["HOME"])
 
 # do stuff in a directory, then return to current directory
 
@@ -30,11 +24,7 @@ function cd(f::Function, dir::String)
         throw(err)
     end
 end
-
 cd(f::Function) = cd(f, ENV["HOME"])
-cd() = cd(ENV["HOME"])
-
-macro cd(dir,ex); :(cd(()->$ex,$dir)); end
 
 # list the contents of a directory
 

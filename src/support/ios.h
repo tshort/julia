@@ -3,7 +3,7 @@
 
 #include <stdarg.h>
 #include <pthread.h>
-#include "../../usr/include/uv.h"
+#include "../../deps/libuv/include/uv.h"
 
 // this flag controls when data actually moves out to the underlying I/O
 // channel. memory streams are a special case of this where the data
@@ -117,8 +117,6 @@ DLLEXPORT int ios_pututf8(ios_t *s, uint32_t wc);
 int ios_putstringz(ios_t *s, char *str, bool_t do_write_nulterm);
 DLLEXPORT int ios_printf(ios_t *s, const char *format, ...);
 DLLEXPORT int ios_vprintf(ios_t *s, const char *format, va_list args);
-
-void hexdump(ios_t *dest, const char *buffer, size_t len, size_t startoffs);
 
 /* high-level stream functions - input */
 int ios_getnum(ios_t *s, char *data, uint32_t type);

@@ -652,13 +652,37 @@ Mathematical Functions
 
    Accurately compute ``exp(x)-1``
 
-``exp2`` ``ldexp`` ``ceil`` ``floor`` ``trunc`` ``round`` ``iceil`` ``ifloor`` ``itrunc`` ``iround`` ``ipart`` ``fpart`` ``min`` ``max`` ``clamp`` ``abs``
+.. function:: ceil(x) -> Float
+
+   Returns the nearest integer not less than ``x``.
+
+.. function:: floor(x) -> Float
+
+   Returns the nearest integer not greater than ``x``.
+
+.. function:: trunc(x) -> Float
+
+   Returns the nearest integer not greater in magnitude than ``x``.
+
+.. function:: iceil(x) -> Integer
+
+   Returns the nearest integer not less than ``x``.
+
+.. function:: ifloor(x) -> Integer
+
+   Returns the nearest integer not greater than ``x``.
+
+.. function:: itrunc(x) -> Integer
+
+   Returns the nearest integer not greater in magnitude than ``x``.
+
+``exp2`` ``ldexp`` ``round`` ``iround`` ``ipart`` ``fpart`` ``min`` ``max`` ``clamp`` ``abs``
 
 .. function:: abs2(x)
 
    Squared absolute value of ``x``
 
-``copysign`` ``sign`` ``signbit`` ``pow`` ``sqrt`` ``cbrt`` ``erf`` ``erfc`` ``gamma`` ``lgamma`` ``lfact`` ``besselj0`` ``besselj1`` ``bessely0`` ``bessely1`` ``real`` ``imag`` ``conj`` ``angle`` ``cis(theta)``
+``copysign`` ``sign`` ``signbit`` ``pow`` ``sqrt`` ``cbrt`` ``erf`` ``erfc`` ``gamma`` ``lgamma`` ``lfact`` ``real`` ``imag`` ``conj`` ``angle`` ``cis(theta)``
 
 .. function:: binomial(n,k)
 
@@ -802,7 +826,7 @@ Numbers
 
    Get the additive identity element for the type of x (x can also specify the type itself).
 
-.. function:: pi
+.. data:: pi
 
    The constant pi
 

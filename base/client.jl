@@ -159,9 +159,7 @@ function process_options(args::Array{Any,1})
             addprocs_local(np-1)
         elseif args[i]=="--machinefile"
             i+=1
-            f = open(args[i])
-            machines = split(readall(f), '\n', false)
-            close(f)
+            machines = split(readall(args[i]), '\n', false)
             addprocs_ssh(machines)
         elseif args[i]=="-v" || args[i]=="--version"
             println("julia version $VERSION")
@@ -186,6 +184,9 @@ end
 const _jl_roottask = current_task()
 const _jl_roottask_wi = WorkItem(_jl_roottask)
 
+_jl_is_interactive = false
+isinteractive() = (_jl_is_interactive::Bool)
+
 function _start()
     try
         ccall(:jl_register_toplevel_eh, Void, ())
@@ -205,7 +206,7 @@ function _start()
         end
 
         global const VARIABLES = {}
-        global const LOAD_PATH = String["", "$JULIA_HOME/", "$JULIA_HOME/extras/"]
+        global const LOAD_PATH = String["", "$JULIA_HOME/../lib/julia/extras/"]
 
         # Load customized startup
         try include(strcat(cwd(),"/startup.jl")) end
@@ -214,6 +215,7 @@ function _start()
         (quiet,repl) = process_options(ARGS)
         if repl
             global _jl_have_color = success(`tput setaf 0`) || has(ENV, "TERM") && matches(r"^xterm", ENV["TERM"])
+            global _jl_is_interactive = true
             if !quiet
                 _jl_banner()
             end

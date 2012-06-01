@@ -218,10 +218,28 @@ isless(a::String, b::String)  = cmp(a,b) <  0
 
 hash(s::String) = hash(cstring(s))
 
+# begins with and ends with predicates
+
+function begins_with(a::String, b::String)
+    i = start(a)
+    j = start(b)
+    while !done(a,i) && !done(b,i)
+        c, i = next(a,i)
+        d, j = next(b,j)
+        if c != d return false end
+    end
+    done(a,i)
+end
+
+# TODO: better ends_with
+ends_with(a::String, b::String) = begins_with(reverse(a),reverse(b))
+
 # faster comparisons for byte strings
 
 cmp(a::ByteString, b::ByteString)     = lexcmp(a.data, b.data)
 isequal(a::ByteString, b::ByteString) = length(a)==length(b) && cmp(a,b)==0
+
+# TODO: fast begins_with and ends_with
 
 ## character column width function ##
 
@@ -628,7 +646,7 @@ _jl_interp_parse(s::String, u::Function) = _jl_interp_parse(s, u, print)
 _jl_interp_parse(s::String) = _jl_interp_parse(s, x->check_utf8(unescape_string(x)))
 
 function _jl_interp_parse_bytes(s::String)
-    writer(x...) = for w=x; write(w); end
+    writer(io,x...) = for w=x; write(io,w); end
     _jl_interp_parse(s, unescape_string, writer)
 end
 
@@ -918,8 +936,17 @@ print_joined(io, strings) = print_joined(io, strings, "")
 join(args...) = sprint(print_joined, args...)
 
 chop(s::String) = s[1:thisind(s,length(s))-1]
-chomp(s::String) = (i=thisind(s,length(s)); i>0 && s[i]=='\n' ? s[1:i-1] : s)
-chomp(s::ByteString) = (isempty(s) || s.data[end]!=0x0a) ? s : s[1:end-1]
+
+function chomp(s::String)
+    i = thisind(s,length(s))
+    if (i < 1 || s[i] != '\n') return s end
+    j = prevind(s,i)
+    if (j < 1 || s[j] != '\r') return s[1:i-1] end
+    return s[1:j-1]
+end
+chomp(s::ByteString) =
+    (length(s) < 1 || s.data[end]   != 0x0a) ? s :
+    (length(s) < 2 || s.data[end-1] != 0x0d) ? s[1:end-1] : s[1:end-2]
 
 function lstrip(s::String)
     i = start(s)

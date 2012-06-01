@@ -77,16 +77,6 @@ void jl_type_error(const char *fname, jl_value_t *expected, jl_value_t *got)
     jl_type_error_rt(fname, "", expected, got);
 }
 
-void jl_undef_ref_error(void)
-{
-    jl_raise(jl_undefref_exception);
-}
-
-void jl_divide_by_zero_error(void)
-{
-    jl_raise(jl_divbyzero_exception);
-}
-
 JL_CALLABLE(jl_f_throw)
 {
     JL_NARGS(throw, 1, 1);
@@ -125,12 +115,47 @@ void jl_pop_handler(int n)
 
 // primitives -----------------------------------------------------------------
 
+int jl_egal(jl_value_t *a, jl_value_t *b)
+{
+    if (a == b)
+        return 1;
+    jl_value_t *ta = (jl_value_t*)jl_typeof(a);
+    if (ta != (jl_value_t*)jl_typeof(b))
+        return 0;
+    if (jl_is_bits_type(ta)) {
+        size_t nb = jl_bitstype_nbits(ta)/8;
+        switch (nb) {
+        case 1:
+            return *(int8_t*)jl_bits_data(a) == *(int8_t*)jl_bits_data(b);
+        case 2:
+            return *(int16_t*)jl_bits_data(a) == *(int16_t*)jl_bits_data(b);
+        case 4:
+            return *(int32_t*)jl_bits_data(a) == *(int32_t*)jl_bits_data(b);
+        case 8:
+            return *(int64_t*)jl_bits_data(a) == *(int64_t*)jl_bits_data(b);
+        default:
+            return memcmp(jl_bits_data(a), jl_bits_data(b), nb)==0;
+        }
+    }
+    if (jl_is_tuple(a)) {
+        size_t l = jl_tuple_len(a);
+        if (l != jl_tuple_len(b))
+            return 0;
+        for(size_t i=0; i < l; i++) {
+            if (!jl_egal(jl_tupleref(a,i),jl_tupleref(b,i)))
+                return 0;
+        }
+        return 1;
+    }
+    return 0;
+}
+
 JL_CALLABLE(jl_f_is)
 {
     JL_NARGS(is, 2, 2);
     if (args[0] == args[1])
         return jl_true;
-    return jl_false;
+    return jl_egal(args[0],args[1]) ? jl_true : jl_false;
 }
 
 JL_CALLABLE(jl_f_no_function)
@@ -259,7 +284,6 @@ jl_value_t *jl_eval_module_expr(jl_expr_t *ex, int *plineno)
     }
     JL_GC_PUSH(&last_module);
     jl_current_module = newm;
-    // TODO: set up imports and exports
 
     jl_array_t *exprs = ((jl_expr_t*)jl_exprarg(ex, 1))->args;
     JL_TRY {
@@ -362,6 +386,19 @@ static int eval_with_compiler_p(jl_expr_t *expr, int compileloops)
 
 extern int jl_in_inference;
 
+static jl_module_t *eval_import_path(jl_array_t *args)
+{
+    jl_module_t *m = jl_current_module;
+    for(size_t i=0; i < args->length-1; i++) {
+        jl_value_t *s = jl_cellref(args,i);
+        assert(jl_is_symbol(s));
+        m = (jl_module_t*)jl_eval_global_var(m, (jl_sym_t*)s);
+        if (!jl_is_module(m))
+            jl_errorf("invalid import statement");
+    }
+    return m;
+}
+
 jl_value_t *jl_toplevel_eval_flex(jl_value_t *e, int fast, int *plineno)
 {
     //jl_show(ex);
@@ -378,6 +415,28 @@ jl_value_t *jl_toplevel_eval_flex(jl_value_t *e, int fast, int *plineno)
     if (ex->head == module_sym) {
         return jl_eval_module_expr(ex, plineno);
     }
+
+    // handle import, export toplevel-only forms
+    if (ex->head == importall_sym) {
+        jl_module_t *m = eval_import_path(ex->args);
+        jl_sym_t *name = (jl_sym_t*)jl_cellref(ex->args, ex->args->length-1);
+        assert(jl_is_symbol(name));
+        m = (jl_module_t*)jl_eval_global_var(m, name);
+        if (!jl_is_module(m))
+            jl_errorf("invalid import statement");
+        jl_module_importall(jl_current_module, m);
+        return jl_nothing;
+    }
+
+    if (ex->head == import_sym) {
+        jl_module_t *m = eval_import_path(ex->args);
+        jl_sym_t *name = (jl_sym_t*)jl_cellref(ex->args, ex->args->length-1);
+        assert(jl_is_symbol(name));
+        jl_module_import(jl_current_module, m, name);
+        return jl_nothing;
+    }
+
+    // TODO: export
 
     jl_value_t *thunk=NULL;
     jl_value_t *result;
@@ -491,7 +550,7 @@ char *jl_find_file_in_path(const char *fname)
     int fid = open (fpath, O_RDONLY);
     // try adding julia home
     if (fid == -1 && julia_home && fname[0] != '/') {
-        if (-1 != asprintf(&fpath, "%s/%s", julia_home, fname))
+        if (-1 != asprintf(&fpath, "%s/../lib/julia/%s", julia_home, fname))
             fid = open (fpath, O_RDONLY);
     }
     if (fid == -1) {
@@ -519,7 +578,13 @@ DLLEXPORT void jl_load_(jl_value_t *str)
 JL_CALLABLE(jl_f_top_eval)
 {
     if (nargs == 1) {
-        return jl_toplevel_eval(args[0]);
+        jl_expr_t *ex = (jl_expr_t*)args[0];
+        if (jl_is_expr(ex) && (ex->head == export_sym ||
+                               ex->head == import_sym ||
+                               ex->head == importall_sym)) {
+            jl_errorf("unsupported or misplaced expression %s", ex->head->name);
+        }
+        return jl_toplevel_eval((jl_value_t*)ex);
     }
     if (nargs != 2) {
         JL_NARGS(eval, 1, 1);
@@ -610,7 +675,7 @@ static jl_value_t *nth_field(jl_value_t *v, size_t i)
 {
     jl_value_t *fld = ((jl_value_t**)v)[1+i];
     if (fld == NULL)
-        jl_undef_ref_error();
+        jl_raise(jl_undefref_exception);
     return fld;
 }
 
@@ -620,8 +685,12 @@ JL_CALLABLE(jl_f_get_field)
     JL_TYPECHK(getfield, symbol, args[1]);
     jl_value_t *v = args[0];
     jl_value_t *vt = (jl_value_t*)jl_typeof(v);
-    if (!jl_is_struct_type(vt))
+    if (vt == (jl_value_t*)jl_module_type) {
+        return jl_eval_global_var((jl_module_t*)v, (jl_sym_t*)args[1]);
+    }
+    if (!jl_is_struct_type(vt)) {
         jl_type_error("getfield", (jl_value_t*)jl_struct_kind, v);
+    }
     size_t i = field_offset((jl_struct_type_t*)vt, (jl_sym_t*)args[1], 1);
     return nth_field(v, i);
 }
@@ -1044,6 +1113,10 @@ JL_CALLABLE(jl_f_typevar)
         JL_NARGS(typevar, 1, 1);
     }
     JL_TYPECHK(typevar, symbol, args[0]);
+    if (jl_boundp(jl_current_module, (jl_sym_t*)args[0]) &&
+        jl_is_type(jl_get_global(jl_current_module, (jl_sym_t*)args[0]))) {
+        ios_printf(ios_stderr, "Warning: type parameter name %s shadows an identifier\n", ((jl_sym_t*)args[0])->name);
+    }
     jl_value_t *lb = (jl_value_t*)jl_bottom_type;
     jl_value_t *ub = (jl_value_t*)jl_any_type;
     int b = 0;
@@ -1167,14 +1240,49 @@ JL_CALLABLE(jl_f_invoke)
 
 // hashing --------------------------------------------------------------------
 
-DLLEXPORT uptrint_t jl_hash_symbol(jl_sym_t *s)
-{
-    return s->hash;
-}
+#ifdef __LP64__
+#define bitmix(a,b) int64hash((a)^bswap_64(b))
+#define hash64(a)   int64hash(a)
+#else
+#define bitmix(a,b) int64to32hash((((uint64_t)a)<<32)|((uint64_t)b))
+#define hash64(a)   int64to32hash(a)
+#endif
 
 DLLEXPORT uptrint_t jl_uid(jl_value_t *v)
 {
-    return (uptrint_t)v;
+    if (jl_is_symbol(v))
+        return ((jl_sym_t*)v)->hash;
+    jl_value_t *tv = (jl_value_t*)jl_typeof(v);
+    if (jl_is_struct_type(tv))
+        return inthash((uptrint_t)v);
+    if (jl_is_bits_type(tv)) {
+        size_t nb = jl_bitstype_nbits(tv)/8;
+        uptrint_t h = inthash((uptrint_t)tv);
+        switch (nb) {
+        case 1:
+            return int32hash(*(int8_t*)jl_bits_data(v) ^ h);
+        case 2:
+            return int32hash(*(int16_t*)jl_bits_data(v) ^ h);
+        case 4:
+            return int32hash(*(int32_t*)jl_bits_data(v) ^ h);
+        case 8:
+            return hash64(*(int64_t*)jl_bits_data(v) ^ h);
+        default:
+#ifdef __LP64__
+            return h ^ memhash((char*)jl_bits_data(v), nb);
+#else
+            return h ^ memhash32((char*)jl_bits_data(v), nb);
+#endif
+        }
+    }
+    assert(jl_is_tuple(v));
+    uptrint_t h = 0;
+    size_t l = jl_tuple_len(v);
+    for(size_t i = 0; i < l; i++) {
+        uptrint_t u = jl_uid(jl_tupleref(v,i));
+        h = bitmix(h, u);
+    }
+    return h;
 }
 
 // init -----------------------------------------------------------------------

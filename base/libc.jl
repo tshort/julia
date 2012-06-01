@@ -29,8 +29,8 @@ end
 
 ## process-related functions ##
 
-getpid() = ccall(:getpid, Uint32, ())
-system(cmd::String) = ccall(:system, Int32, (Ptr{Uint8},), cmd)
+getpid() = int(ccall(:getpid, Int32, ()))
+system(cmd::String) = int(ccall(:system, Int32, (Ptr{Uint8},), cmd))
 
 ## network functions ##
 
@@ -45,6 +45,10 @@ function getipaddr()
     ccall(:getlocalip, Void, (Ptr{Uint8}, Uint), ip, length(ip))
     cstring(convert(Ptr{Uint8},ip))
 end
+
+## get a temporary file name ##
+
+tmpnam() = cstring(ccall(:tmpnam, Ptr{Uint8}, (Ptr{Uint8},), C_NULL))
 
 ## Memory related ##
 

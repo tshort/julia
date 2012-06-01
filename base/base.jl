@@ -31,9 +31,9 @@ type ArgumentError <: Exception
     msg::String
 end
 
-type UnboundError <: Exception
-    var::Symbol
-end
+#type UnboundError <: Exception
+#    var::Symbol
+#end
 
 type KeyError <: Exception
     key
@@ -70,6 +70,10 @@ uint(x::Uint) = x
 # function version of field assignment
 setfield(s, f, v) = (s.(f) = v)
 
+# reflection
+
+names(m::Module) = ccall(:jl_module_names, Any, (Any,), m)::Array{Any,1}
+
 # index colon
 type Colon
 end
@@ -91,8 +95,8 @@ istaskdone(t::Task) = t.done
 
 cstring(str::ByteString) = str
 
-# return an integer such that uid(x)==uid(y) iff is(x,y)
-uid(x) = ccall(:jl_uid, Uint, (Any,), x)
+# return an integer such that uid(x)==uid(y) if is(x,y)
+uid(x::ANY) = ccall(:jl_uid, Uint, (Any,), x)
 
 dlsym(hnd, s::String) = ccall(:jl_dlsym, Ptr{Void}, (Ptr{Void}, Ptr{Uint8}), hnd, s)
 dlsym(hnd, s::Symbol) = ccall(:jl_dlsym, Ptr{Void}, (Ptr{Void}, Ptr{Uint8}), hnd, s)
@@ -110,8 +114,8 @@ function append_any(xs...)
     end
     out = Array(Any, n)
     i = 1
-    for x = xs
-        for y = x
+    for x in xs
+        for y in x
             arrayset(out, i, y)
             i += 1
         end

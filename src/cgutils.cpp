@@ -18,13 +18,21 @@ static GlobalVariable *stringConst(const std::string &txt)
                                 ArrayType::get(T_int8, txt.length()+1),
                                 true,
                                 GlobalVariable::ExternalLinkage,
+#ifndef LLVM_VERSION_MAJOR
                                 ConstantArray::get(getGlobalContext(),
-                                                   txt.c_str()),
-                                vname);
+                                                       txt.c_str()),
+#elif LLVM_VERSION_MAJOR == 3 && LLVM_VERSION_MINOR >= 1
+                                ConstantDataArray::get(getGlobalContext(),
+                                                       ArrayRef<unsigned char>(
+                                                       (const unsigned char*)txt.c_str(),
+                                                       txt.length()+1)),
+#endif
+        vname);
         stringConstants[txt] = gv;
         strno++;
     }
     return gv;
+
 }
 
 // --- emitting pointers directly into code ---
@@ -89,23 +97,39 @@ static void error_unless(Value *cond, const std::string &msg, jl_codectx_t *ctx)
     builder.SetInsertPoint(passBB);
 }
 
-static void call_error_func_unless(Value *cond, Function *errfunc,
-                                   jl_codectx_t *ctx)
+static void raise_exception_unless(Value *cond, Value *exc, jl_codectx_t *ctx)
 {
     BasicBlock *failBB = BasicBlock::Create(getGlobalContext(),"fail",ctx->f);
     BasicBlock *passBB = BasicBlock::Create(getGlobalContext(),"pass");
     builder.CreateCondBr(cond, passBB, failBB);
     builder.SetInsertPoint(failBB);
-    builder.CreateCall(errfunc);
+    builder.CreateCall(jlraise_func, exc);
     builder.CreateBr(passBB);
     ctx->f->getBasicBlockList().push_back(passBB);
     builder.SetInsertPoint(passBB);
 }
 
+static void raise_exception_unless(Value *cond, GlobalVariable *exc,
+                                   jl_codectx_t *ctx)
+{
+    raise_exception_unless(cond, (Value*)builder.CreateLoad(exc, false), ctx);
+}
+
+static void raise_exception_if(Value *cond, Value *exc, jl_codectx_t *ctx)
+{
+    raise_exception_unless(builder.CreateXor(cond, ConstantInt::get(T_int1,-1)),
+                           exc, ctx);
+}
+
+static void raise_exception_if(Value *cond, GlobalVariable *exc,
+                               jl_codectx_t *ctx)
+{
+    raise_exception_if(cond, (Value*)builder.CreateLoad(exc, false), ctx);
+}
+
 static void null_pointer_check(Value *v, jl_codectx_t *ctx)
 {
-    call_error_func_unless(builder.CreateICmpNE(v, V_null),
-                           jluniniterror_func, ctx);
+    raise_exception_unless(builder.CreateICmpNE(v,V_null), jlundeferr_var, ctx);
 }
 
 static Value *boxed(Value *v);

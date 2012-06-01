@@ -51,12 +51,17 @@ jl_bits_type_t *jl_pointer_type;
 jl_value_t *jl_an_empty_cell=NULL;
 jl_value_t *jl_stackovf_exception;
 jl_value_t *jl_divbyzero_exception;
+jl_value_t *jl_domain_exception;
+jl_value_t *jl_overflow_exception;
+jl_value_t *jl_inexact_exception;
 jl_value_t *jl_undefref_exception;
 jl_value_t *jl_interrupt_exception;
 jl_value_t *jl_memory_exception;
 
 jl_sym_t *call_sym;    jl_sym_t *dots_sym;
 jl_sym_t *call1_sym;   jl_sym_t *module_sym;
+jl_sym_t *export_sym;  jl_sym_t *import_sym;
+jl_sym_t *importall_sym;
 jl_sym_t *quote_sym;   jl_sym_t *amp_sym;
 jl_sym_t *top_sym;     jl_sym_t *colons_sym;
 jl_sym_t *line_sym;    jl_sym_t *jl_continue_sym;

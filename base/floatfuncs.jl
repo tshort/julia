@@ -29,7 +29,7 @@ maxintfloat(::Type{Float32}) = float32(16777216.)
 maxintfloat{T<:Float}(x::T)  = maxintfloat(T)
 maxintfloat() = maxintfloat(Float64)
 
-integer_valued(x::Float) = trunc(x) == x
+integer_valued(x::Float) = (trunc(x)==x)&isfinite(x)
 
 sqrt(x::Real) = sqrt(float(x))
 sin(x::Real) = sin(float(x))
@@ -38,7 +38,7 @@ cos(x::Real) = cos(float(x))
 num2hex(x::Float32) = int2str(boxui32(unbox32(x)),16, 8)
 num2hex(x::Float64) = int2str(boxui64(unbox64(x)),16,16)
 
-function hex2num(s)
+function hex2num(s::String)
     if length(s) <= 8
         return boxf32(unbox32(parse_int(Int32, s, 16)))
     end
@@ -49,4 +49,7 @@ end
 @vectorize_1arg Real itrunc
 @vectorize_1arg Real ifloor
 @vectorize_1arg Real iceil
+
 @vectorize_1arg Number abs
+@vectorize_1arg Number abs2
+@vectorize_1arg Number angle
