@@ -66,8 +66,8 @@ test_group("DataVec to something else")
 @test all(nafilter(dvint) == [1,2,4]) # TODO: test.jl should grok all(a == b)
 @test all(nareplace(dvint,0) == [1,2,0,4])
 @test all(convert(Int, dvint2) == [5:8])
-@test all([i+1 | i=dvint2] == [6:9]) # iterator test
-@test all([length(x)::Int | x=dvstr] == [3,3,1,4])
+@test all([i+1 for i=dvint2] == [6:9]) # iterator test
+@test all([length(x)::Int for x=dvstr] == [3,3,1,4])
 @test sshow(dvint) == "[1,2,NA,4]"
 
 test_group("PooledDataVec to something else")
@@ -115,17 +115,17 @@ assigntest[2:4] = NA
 test_group("PooledDataVec assignment")
 @test (pdvstr[2] = "three") == "three" 
 @test pdvstr[2] == "three"
-@test (pdvstr[[1,2]] = "two") == DataVec["two", "two"]
+@test (pdvstr[[1,2]] = "two") == "two"
 @test pdvstr[2] == "two"
 pdvstr2 = PooledDataVec["one", "one", "two", "two"]
-@test (pdvstr2[[true, false, true, false]] = "three") == DataVec["three", "three"]
+@test (pdvstr2[[true, false, true, false]] = "three") == "three"
 @test pdvstr2[1] == "three"
-@test (pdvstr2[[false, true, false, true]] = ["four", "five"]) == DataVec["four", "five"]
+@test (pdvstr2[[false, true, false, true]] = ["four", "five"]) == ["four", "five"]
 @test pdvstr2[3:4] == DataVec["three", "five"]
 pdvstr2 = PooledDataVec["one", "one", "two", "two"]
-@test (pdvstr2[2:3] = "three") == DataVec["three"]
+@test (pdvstr2[2:3] = "three") == "three"
 @test pdvstr2[3:4] == DataVec["three", "two"]
-@test (pdvstr2[2:3] = ["four", "five"]) == DataVec["four", "five"]
+@test (pdvstr2[2:3] = ["four", "five"]) == ["four", "five"]
 @test pdvstr2[1:2] == DataVec["one", "four"]
 pdvstr2 = PooledDataVec["one", "one", "two", "two", "three"]
 @test isna(begin pdvstr2[1] = NA end)
