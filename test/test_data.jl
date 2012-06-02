@@ -174,3 +174,19 @@ test_group("ref")
 test_group("show")
 @test sshow(df1) == "      Ints Strs\n[1,]     1  one\n[2,]     2  two\n[3,]    NA   NA\n[4,]     4 four\n"
 
+test_context("SubDataFrames")
+
+test_group("constructors")
+# single index is rows
+sdf6a = sub(df6, 1)
+sdf6b = sub(df6, 2:3)
+sdf6c = sub(df6, [true, false, true, false])
+@test size(sdf6a) == (1,3)
+sdf6d = sub(df6, [1,3], "B")
+@test size(sdf6d) == (2,1)
+
+test_group("ref")
+@test sdf6a[1,2] == 1
+
+
+
