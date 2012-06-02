@@ -58,9 +58,10 @@ test_group("PooledDataVec methods")
 test_group("DataVec operations")
 @test dvint+1 == DataVec([2,3,4,5], [false, false, true, false])
 @test dvint.*2 == DataVec[2,4,NA,8]
+@test (dvint .== 2) == DataVec[false, true, NA, false]
 
 test_group("PooledDataVec operations")
-# TODO
+@test (pdvstr .== "two") == PooledDataVec[false, false, true, true, NA, false, false]
 
 test_group("DataVec to something else")
 @test all(nafilter(dvint) == [1,2,4]) # TODO: test.jl should grok all(a == b)
