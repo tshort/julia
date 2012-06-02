@@ -146,12 +146,12 @@ pdvstr2 = PooledDataVec["one", "one", "two", "two", "three"]
 test_context("DataFrames")
 
 test_group("constructors")
-df1 = DataFrame({dvint, dvstr}, ["a","b","c","d"], ["Ints", "Strs"])
+df1 = DataFrame({dvint, dvstr}, ["Ints", "Strs"])
 df2 = DataFrame({dvint, dvstr})
 df3 = DataFrame({dvint})
 df4 = DataFrame([1:4 1:4])
 df5 = DataFrame({DataVec[1,2,3,4], dvstr})
-df6 = DataFrame({dvint, dvint, dvstr}, ["a","b","c","d"], ["A", "B", "C"])
+df6 = DataFrame({dvint, dvint, dvstr}, ["A", "B", "C"])
 
 test_group("description functions")
 @test nrow(df6) == 4
@@ -161,8 +161,8 @@ test_group("description functions")
 
 test_group("ref")
 @test df6[2,3] == "two"
-@test isna(df6["c",3])
-@test df6["b", "C"] == "two"
+@test isna(df6[3,3])
+@test df6[2, "C"] == "two"
 @test df6["B"] == dvint
 @test ncol(df6[[2,3]]) == 2
 @test nrow(df6[2,:]) == 1
@@ -172,5 +172,5 @@ test_group("ref")
 # lots more to do
 
 test_group("show")
-@test sshow(df1) == "   Ints Strs\na     1  one\nb     2  two\nc    NA   NA\nd     4 four\n"
+@test sshow(df1) == "      Ints Strs\n[1,]     1  one\n[2,]     2  two\n[3,]    NA   NA\n[4,]     4 four\n"
 
