@@ -4,18 +4,19 @@ include ../Make.inc
 default all extra unicode::
 	@$(MAKE) -sC unicode
 
-default all extra \
+TESTS = default all extra \
 core numbers strings corelib hashing arrayops \
 glpk linprog sparse lapack fft arpack random unicode \
-special bigint bigfloat bitarray \
-::
-	$(QUIET_JULIA) ../julia ./runtests.jl $@
+special bigint bigfloat bitarray distributions
+
+$(TESTS) ::
+	$(QUIET_JULIA) $(JULIA_EXECUTABLE) ./runtests.jl $@
 
 perf:
 ifneq ($(MAKECMDGOALS),perf)
-	$(QUIET_JULIA) ../julia perf/$@.jl
+	$(QUIET_JULIA) $(JULIA_EXECUTABLE) perf/$@.jl
 else
-	@../julia perf/$@.jl | perl -nle '@_=split/,/; printf "%-14s %7.3f\n", $$_[1], $$_[2]'
+	@$(JULIA_EXECUTABLE) perf/$@.jl | perl -nle '@_=split/,/; printf "%-14s %7.3f\n", $$_[1], $$_[2]'
 endif
 
 benchmark:
@@ -25,9 +26,5 @@ clean:
 	@$(MAKE) -C unicode $@
 	@$(MAKE) -C perf $@
 
-.PHONY: \
-	default all extra \
-	core numbers strings corelib hashing arrayops glpk \
-	linprog sparse lapack fft arpack random special \
-	unicode perf bitarray \
-	benchmark clean
+.PHONY: $(TESTS) perf benchmark clean
+

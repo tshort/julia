@@ -574,6 +574,48 @@ collection[key...] = value
 
 "),
 
+(E"Strings",E"strip",E"strip(string)
+
+   Return 'string' with any leading and trailing whitespace removed.
+
+"),
+
+(E"Strings",E"lstrip",E"lstrip(string)
+
+   Return 'string' with any leading whitespace removed.
+
+"),
+
+(E"Strings",E"rstrip",E"rstrip(string)
+
+   Return 'string' with any trailing whitespace removed.
+
+"),
+
+(E"Strings",E"begins_with",E"begins_with(string, prefix)
+
+   Returns 'true' if 'string' starts with 'prefix'.
+
+"),
+
+(E"Strings",E"ends_with",E"ends_with(string, suffix)
+
+   Returns 'true' if 'string' ends with 'suffix'.
+
+"),
+
+(E"Strings",E"uppercase",E"uppercase(string)
+
+   Returns 'string' with all characters converted to uppercase.
+
+"),
+
+(E"Strings",E"lowercase",E"lowercase(string)
+
+   Returns 'string' with all characters converted to lowercase.
+
+"),
+
 (E"Strings",E"join",E"join(strings, delim)
 
    Join an array of strings into a single string, inserting the given
@@ -605,19 +647,19 @@ collection[key...] = value
 
 "),
 
-(E"I/O",E"stdout_stream",E"stdout_stream()
+(E"I/O",E"stdout_stream",E"stdout_stream
 
    Global variable referring to the standard out stream.
 
 "),
 
-(E"I/O",E"stderr_stream",E"stderr_stream()
+(E"I/O",E"stderr_stream",E"stderr_stream
 
    Global variable referring to the standard error stream.
 
 "),
 
-(E"I/O",E"stdin_stream",E"stdin_stream()
+(E"I/O",E"stdin_stream",E"stdin_stream
 
    Global variable referring to the standard input stream.
 
@@ -803,16 +845,9 @@ collection[key...] = value
 
 "),
 
-(E"Text I/O",E"LineIterator",E"LineIterator(stream)
+(E"Text I/O",E"EachLine",E"EachLine(stream)
 
    Create an iterable object that will yield each line from a stream.
-
-"),
-
-(E"Text I/O",E"each_line",E"each_line(stream or command)
-
-   Construct an iterator to read each line from a stream or from a
-   shell command object
 
 "),
 
@@ -1176,7 +1211,7 @@ collection[key...] = value
 
 "),
 
-(E"Numbers",E"pi",E"pi()
+(E"Numbers",E"pi",E"pi
 
    The constant pi
 

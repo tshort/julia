@@ -166,7 +166,7 @@ The ``state`` object may be anything, and should be chosen appropriately for eac
 
    For a given iterable object and iteration state, return the current item and the next iteration state
 
-Fully implemented by: ``Range``, ``Range1``, ``NDRange``, ``Tuple``, ``Real``, ``AbstractArray``, ``IntSet``, ``ObjectIdDict``, ``Dict``, ``WeakKeyDict``, ``LineIterator``, ``String``, ``Set``, ``Task``.
+Fully implemented by: ``Range``, ``Range1``, ``NDRange``, ``Tuple``, ``Real``, ``AbstractArray``, ``IntSet``, ``ObjectIdDict``, ``Dict``, ``WeakKeyDict``, ``EachLine``, ``String``, ``Set``, ``Task``.
 
 General Collections
 -------------------
@@ -417,6 +417,34 @@ Strings
 
    Return an array of strings by splitting the given string on occurrences of the given character delimiter. The second argument may also be a set of character delimiters to use. The third argument specifies whether empty fields should be included.
 
+.. function:: strip(string)
+
+   Return ``string`` with any leading and trailing whitespace removed.
+
+.. function:: lstrip(string)
+
+   Return ``string`` with any leading whitespace removed.
+
+.. function:: rstrip(string)
+
+   Return ``string`` with any trailing whitespace removed.
+
+.. function:: begins_with(string, prefix)
+
+   Returns ``true`` if ``string`` starts with ``prefix``.
+
+.. function:: ends_with(string, suffix)
+
+   Returns ``true`` if ``string`` ends with ``suffix``.
+
+.. function:: uppercase(string)
+
+   Returns ``string`` with all characters converted to uppercase.
+
+.. function:: lowercase(string)
+
+   Returns ``string`` with all characters converted to lowercase.
+
 .. function:: join(strings, delim)
 
    Join an array of strings into a single string, inserting the given delimiter between adjacent strings.
@@ -440,15 +468,15 @@ Strings
 I/O
 ---
 
-.. function:: stdout_stream
+.. data:: stdout_stream
 
    Global variable referring to the standard out stream.
 
-.. function:: stderr_stream
+.. data:: stderr_stream
 
    Global variable referring to the standard error stream.
 
-.. function:: stdin_stream
+.. data:: stdin_stream
 
    Global variable referring to the standard input stream.
 
@@ -560,13 +588,9 @@ Text I/O
 
    Read all lines as an array.
 
-.. function:: LineIterator(stream)
+.. function:: EachLine(stream)
 
    Create an iterable object that will yield each line from a stream.
-
-.. function:: each_line(stream or command)
-
-   Construct an iterator to read each line from a stream or from a shell command object
 
 .. function:: dlmread(filename, delim::Char)
 
