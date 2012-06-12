@@ -174,6 +174,19 @@ test_group("ref")
 test_group("show")
 @test sshow(df1) == "      Ints Strs\n[1,]     1  one\n[2,]     2  two\n[3,]    NA   NA\n[4,]     4 four\n"
 
+test_group("assign")
+df6[3] = DataVec["un", "deux", "troix", "quatre"]
+@test df6[1,3] == "un"
+df6["B"] = [4,3,2,1]
+@test df6[1,2] == 4
+df6["D"] = [true, false, true, false]
+@test df6[1,4] == true
+del!(df6, "D")
+@test colnames(df6) == ["A", "B", "C"]
+df6b = del(df6, 1)
+@test ncol(df6) == 3
+@test ncol(df6b) == 2
+
 test_context("SubDataFrames")
 
 test_group("constructors")
@@ -186,7 +199,7 @@ sdf6d = sub(df6, [1,3], "B")
 @test size(sdf6d) == (2,1)
 
 test_group("ref")
-@test sdf6a[1,2] == 1
+@test sdf6a[1,2] == 4
 
 
 
