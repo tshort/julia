@@ -70,6 +70,9 @@ reshape(a::AbstractArray, dims::Int...) = reshape(a, dims)
 
 vec(a::AbstractArray) = reshape(a,max(size(a)))
 
+rowvec{T}(a::AbstractArray{T,2}, i::Int) = vec(a[i,:])
+colvec{T}(a::AbstractArray{T,2}, i::Int) = vec(a[:,i])
+
 function squeeze(A::AbstractArray)
     d = ()
     for i = size(A)
@@ -244,10 +247,10 @@ end
 ## Indexing: ref ##
 
 ref(t::AbstractArray, i::Integer) = error("indexing not defined for ", typeof(t))
-ref(t::AbstractArray, i::Real) = ref(t, iround(i))
-ref(t::AbstractArray, i::Real, j::Real) = ref(t, iround(i), iround(j))
-ref(t::AbstractArray, i::Real, j::Real, k::Real) = ref(t, iround(i), iround(j), iround(k))
-ref(t::AbstractArray, r::Real...) = ref(t,map(iround,r)...)
+ref(t::AbstractArray, i::Real) = ref(t, to_index(i))
+ref(t::AbstractArray, i::Real, j::Real) = ref(t, to_index(i), to_index(j))
+ref(t::AbstractArray, i::Real, j::Real, k::Real) = ref(t, to_index(i), to_index(j), to_index(k))
+ref(t::AbstractArray, r::Real...) = ref(t,map(to_index,r)...)
 
 # index A[:,:,...,i,:,:,...] where "i" is in dimension "d"
 # TODO: more optimized special cases
@@ -304,11 +307,11 @@ assign(t::AbstractArray, x, i::Integer) =
     error("assign not defined for ",typeof(t))
 assign(t::AbstractArray, x) = throw(MethodError(assign, (t, x)))
 
-assign(t::AbstractArray, x, i::Real)          = (t[iround(i)] = x)
-assign(t::AbstractArray, x, i::Real, j::Real) = (t[iround(i),iround(j)] = x)
+assign(t::AbstractArray, x, i::Real)          = (t[to_index(i)] = x)
+assign(t::AbstractArray, x, i::Real, j::Real) = (t[to_index(i),to_index(j)] = x)
 assign(t::AbstractArray, x, i::Real, j::Real, k::Real) =
-    (t[iround(i),iround(j),iround(k)] = x)
-assign(t::AbstractArray, x, r::Real...)       = (t[map(iround,r)...] = x)
+    (t[to_index(i),to_index(j),to_index(k)] = x)
+assign(t::AbstractArray, x, r::Real...)       = (t[map(to_index,r)...] = x)
 
 ## Concatenation ##
 
