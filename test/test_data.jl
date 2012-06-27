@@ -201,5 +201,82 @@ sdf6d = sub(df6, [1,3], "B")
 test_group("ref")
 @test sdf6a[1,2] == 4
 
+test_context("Within")
+test_group("within")
 
+srand(1)
+N = 20
+d1 = PooledDataVec(randi(2,N))
+d2 = PooledDataVec["A", "B", NA][randi(3,N)]
+d3 = DataVec(randn(N))
+d4 = DataVec(randn(N))
+df7 = DataFrame({d1,d2,d3}, ["d1","d2","d3"])
+
+
+@assert with(df7, :(d3 + d3)) == df7["d3"] + df7["d3"]
+@assert with(df7, :(d3 + $d4)) == df7["d3"] + d4
+x = df7 | with(:( d3 + d3 ))
+@assert x == df7["d3"] + df7["d3"]
+
+df8 = within(df7, :(d4 = d3 + d3 + 1))
+@assert df7 == df8[1:3]
+@assert df8["d4"] == df7["d3"] + df7["d3"] + 1
+within!(df8, :( d4 = d1 ))
+@assert df8["d1"] == df8["d4"]
+
+df8 = summarise(df7, :( d1 = d3 ))
+@assert df8["d1"] == df7["d3"]
+df8 = df7 | summarise(:( d1 = d3 ))
+@assert df8["d1"] == df7["d3"]
+df8 = summarise(df7, :( sum_d3 = sum(d3) ))
+@assert df8[1,1] == sum(df7["d3"])
+
+
+##@assert df7[:( d2 .== "B" )]["d1"] == PooledDataVec([1,2,1,1]) # broken -- NAs match!
+## @assert df7[:( d2 .== "B" ), "d1"] == PooledDataVec([1,2,1,1]) # broken
+
+
+test_group("groupby")
+
+gd = groupby(df7, "d1")
+@assert length(gd) == 2
+@assert gd[2]["d2"] == PooledDataVec["A","B",NA,"A",NA,NA,NA,NA]
+@assert sum(gd[2]["d3"]) == sum(df7["d3"][nafilter(df7["d1"] .== 2)])
+
+g1 = groupby(df7, ["d1","d2"])
+g2 = groupby(df7, ["d2","d1"])
+@assert sum(g1[1]["d3"]) == sum(g2[1]["d3"])
+
+res = 0.0
+for x in g1
+    res += sum(x["d1"])
+end
+@assert res == sum(df7["d1"])
+
+df8 = df7 | groupby(["d2"]) | :( d3sum = sum(d3); d3mean = mean(nafilter(d3)) )
+@assert df8["d2"] == PooledDataVec[NA, "A", "B"] # may change if these end up getting sorted
+df9 = summarise(groupby(df7, "d2"),
+                :( d3sum = sum(d3); d3mean = mean(nafilter(d3)) ))
+@assert df9 == df8
+
+df8 = within(groupby(df7, "d2"),
+             :( d4 = d3 + 1; d1sum = sum(d1) ))
+@assert all(df8[:( d2 .== "C" )]["d1sum"] .== 13)
+             
+@assert with(g1, :( sum(d1) )) == map(x -> sum(x["d1"]), g1)
+
+df8 = colwise(df7[[1,3]], :sum)
+@assert df8[1,"d1_sum"] == sum(df7["d1"])
+
+df8 = colwise(groupby(df7[[1,3]], "d1"), [:sum, :length])
+@assert nrow(df8) == 2
+@assert ncol(df8) == 4
+@assert df8[1,"d1_sum"] == 12
+@assert df8[2,"d1_length"] == 8
+
+## df8 = df7[[1,3]] | groupby("d1") | [:sum, :length]   # broken
+df9 = df7[[1,3]] | groupby(["d1"]) | [:sum, :length]
+@assert df9 == df8
+df9 = by(df7[[1,3]], "d1", [:sum, :length])
+@assert df9 == df8
 
