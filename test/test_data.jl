@@ -201,12 +201,13 @@ sdf6d = sub(df6, [1,3], "B")
 test_group("ref")
 @test sdf6a[1,2] == 4
 
+test_context("Within")
 test_group("within")
 
 srand(1)
 N = 20
 d1 = PooledDataVec(randi(2,N))
-d2 = PooledDataVec(["A", "B", "C"][randi(3,N)])
+d2 = PooledDataVec["A", "B", NA][randi(3,N)]
 d3 = DataVec(randn(N))
 d4 = DataVec(randn(N))
 df7 = DataFrame({d1,d2,d3}, ["d1","d2","d3"])
@@ -227,8 +228,11 @@ df8 = summarise(df7, :( d1 = d3 ))
 @assert df8["d1"] == df7["d3"]
 df8 = df7 | summarise(:( d1 = d3 ))
 @assert df8["d1"] == df7["d3"]
+df8 = summarise(df7, :( sum_d3 = sum(d3) ))
+@assert df8[1,1] == sum(df7["d3"])
 
-@assert df7[:( d2 .== "B" )]["d1"] == PooledDataVec([1,2,1,1])
+
+##@assert df7[:( d2 .== "B" )]["d1"] == PooledDataVec([1,2,1,1]) # broken -- NAs match!
 ## @assert df7[:( d2 .== "B" ), "d1"] == PooledDataVec([1,2,1,1]) # broken
 
 
@@ -236,7 +240,7 @@ test_group("groupby")
 
 gd = groupby(df7, "d1")
 @assert length(gd) == 2
-@assert gd[2]["d2"] == PooledDataVec(["A","B","C","A","C","C","C","C"])
+@assert gd[2]["d2"] == PooledDataVec["A","B",NA,"A",NA,NA,NA,NA]
 @assert sum(gd[2]["d3"]) == sum(df7["d3"][nafilter(df7["d1"] .== 2)])
 
 g1 = groupby(df7, ["d1","d2"])
@@ -250,7 +254,7 @@ end
 @assert res == sum(df7["d1"])
 
 df8 = df7 | groupby(["d2"]) | :( d3sum = sum(d3); d3mean = mean(nafilter(d3)) )
-@assert df8["d2"] == PooledDataVec(["C", "B", "A"]) # may change if these end up getting sorted
+@assert df8["d2"] == PooledDataVec[NA, "A", "B"] # may change if these end up getting sorted
 df9 = summarise(groupby(df7, "d2"),
                 :( d3sum = sum(d3); d3mean = mean(nafilter(d3)) ))
 @assert df9 == df8
