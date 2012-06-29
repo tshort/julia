@@ -217,11 +217,11 @@ a4 = within(a1, :( d = a + b ))
 @assert a4[:d] == a1[:a] + a1[:b]
 @assert a4[:a] == a1[:a]
 
-a4 = summarise(a1, :( d = a + b ))
+a4 = based_on(a1, :( d = a + b ))
 @assert a4[:d] == a1[:a] + a1[:b]
 
 ## a4 = within(a2, :( d = a + b ))   # doesn't work - keys must be symbols
-## a4 = summarise(a3, :( d = a + b ))   # doesn't work - keys must be symbols
+## a4 = based_on(a3, :( d = a + b ))   # doesn't work - keys must be symbols
 
 test_group("DataFrame")
 
@@ -245,11 +245,11 @@ df8 = within(df7, :(d4 = d3 + d3 + 1))
 within!(df8, :( d4 = d1 ))
 @assert df8["d1"] == df8["d4"]
 
-df8 = summarise(df7, :( d1 = d3 ))
+df8 = based_on(df7, :( d1 = d3 ))
 @assert df8["d1"] == df7["d3"]
-df8 = df7 | summarise(:( d1 = d3 ))
+df8 = df7 | based_on(:( d1 = d3 ))
 @assert df8["d1"] == df7["d3"]
-df8 = summarise(df7, :( sum_d3 = sum(d3) ))
+df8 = based_on(df7, :( sum_d3 = sum(d3) ))
 @assert df8[1,1] == sum(df7["d3"])
 
 
@@ -276,8 +276,8 @@ end
 
 df8 = df7 | groupby(["d2"]) | :( d3sum = sum(d3); d3mean = mean(nafilter(d3)) )
 @assert df8["d2"] == PooledDataVec[NA, "A", "B"] # may change if these end up getting sorted
-df9 = summarise(groupby(df7, "d2"),
-                :( d3sum = sum(d3); d3mean = mean(nafilter(d3)) ))
+df9 = based_on(groupby(df7, "d2"),
+               :( d3sum = sum(d3); d3mean = mean(nafilter(d3)) ))
 @assert df9 == df8
 
 df8 = within(groupby(df7, "d2"),
