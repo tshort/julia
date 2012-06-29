@@ -202,7 +202,28 @@ test_group("ref")
 @test sdf6a[1,2] == 4
 
 test_context("Within")
-test_group("within")
+test_group("Associative")
+
+a1 = {:a => [1,2], :b => [3,4], :c => [5,6]}
+a2 = {"a" => [1,2], "b" => [3,4], "c" => [5,6]}
+a3 = {"a" => [1,2], "b" => [3,4], :c => [5,6]}
+
+@assert with(a1, :( c + 1 )) == a1[:c] + 1
+@assert with(a2, :( c + 1 )) == with(a1, :( c + 1 ))
+@assert with(a3, :( c + 1 )) == with(a1, :( c + 1 ))
+@assert with(a3, :( c + 1 + 0 * b)) == with(a1, :( c + 1 ))
+
+a4 = within(a1, :( d = a + b ))
+@assert a4[:d] == a1[:a] + a1[:b]
+@assert a4[:a] == a1[:a]
+
+a4 = summarise(a1, :( d = a + b ))
+@assert a4[:d] == a1[:a] + a1[:b]
+
+## a4 = within(a2, :( d = a + b ))   # doesn't work - keys must be symbols
+## a4 = summarise(a3, :( d = a + b ))   # doesn't work - keys must be symbols
+
+test_group("DataFrame")
 
 srand(1)
 N = 20
