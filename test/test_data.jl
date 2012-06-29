@@ -253,7 +253,7 @@ df8 = based_on(df7, :( sum_d3 = sum(d3) ))
 @assert df8[1,1] == sum(df7["d3"])
 
 
-##@assert df7[:( d2 .== "B" )]["d1"] == PooledDataVec([1,2,1,1]) # broken -- NAs match!
+@assert df7[:( d2 .== "B" )]["d1"] == PooledDataVec([1,2,1,1]) 
 ## @assert df7[:( d2 .== "B" ), "d1"] == PooledDataVec([1,2,1,1]) # broken
 
 
@@ -295,8 +295,7 @@ df8 = colwise(groupby(df7[[1,3]], "d1"), [:sum, :length])
 @assert df8[1,"d1_sum"] == 12
 @assert df8[2,"d1_length"] == 8
 
-## df8 = df7[[1,3]] | groupby("d1") | [:sum, :length]   # broken
-df9 = df7[[1,3]] | groupby(["d1"]) | [:sum, :length]
+df9 = df7[[1,3]] | groupby("d1") | [:sum, :length]
 @assert df9 == df8
 df9 = by(df7[[1,3]], "d1", [:sum, :length])
 @assert df9 == df8
