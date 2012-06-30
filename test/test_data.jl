@@ -147,17 +147,17 @@ test_context("DataFrames")
 
 test_group("constructors")
 df1 = DataFrame({dvint, dvstr}, ["Ints", "Strs"])
-df2 = DataFrame({dvint, dvstr})
-df3 = DataFrame({dvint})
-df4 = DataFrame([1:4 1:4])
-df5 = DataFrame({DataVec[1,2,3,4], dvstr})
+#df2 = DataFrame({dvint, dvstr}) put back when we have default col names
+#df3 = DataFrame({dvint})
+#df4 = DataFrame([1:4 1:4])
+#df5 = DataFrame({DataVec[1,2,3,4], dvstr})
 df6 = DataFrame({dvint, dvint, dvstr}, ["A", "B", "C"])
 
 test_group("description functions")
 @test nrow(df6) == 4
 @test ncol(df6) == 3
 @test all(names(df6) == ["A", "B", "C"])
-@test all(names(df2) == [nothing, nothing])
+#@test all(names(df2) == [nothing, nothing])
 
 test_group("ref")
 @test df6[2,3] == "two"
