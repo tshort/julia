@@ -232,8 +232,8 @@ df8 = summarise(df7, :( sum_d3 = sum(d3) ))
 @assert df8[1,1] == sum(df7["d3"])
 
 
-##@assert df7[:( d2 .== "B" )]["d1"] == PooledDataVec([1,2,1,1]) # broken -- NAs match!
-## @assert df7[:( d2 .== "B" ), "d1"] == PooledDataVec([1,2,1,1]) # broken
+@assert df7[:( d2 .== "B" )]["d1"] == PooledDataVec([1,2,1,1]) 
+@assert df7[:( d2 .== "B" ), "d1"] == PooledDataVec([1,2,1,1]) 
 
 
 test_group("groupby")
