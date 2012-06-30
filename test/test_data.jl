@@ -202,7 +202,28 @@ test_group("ref")
 @test sdf6a[1,2] == 4
 
 test_context("Within")
-test_group("within")
+test_group("Associative")
+
+a1 = {:a => [1,2], :b => [3,4], :c => [5,6]}
+a2 = {"a" => [1,2], "b" => [3,4], "c" => [5,6]}
+a3 = {"a" => [1,2], "b" => [3,4], :c => [5,6]}
+
+@assert with(a1, :( c + 1 )) == a1[:c] + 1
+@assert with(a2, :( c + 1 )) == with(a1, :( c + 1 ))
+@assert with(a3, :( c + 1 )) == with(a1, :( c + 1 ))
+@assert with(a3, :( c + 1 + 0 * b)) == with(a1, :( c + 1 ))
+
+a4 = within(a1, :( d = a + b ))
+@assert a4[:d] == a1[:a] + a1[:b]
+@assert a4[:a] == a1[:a]
+
+a4 = based_on(a1, :( d = a + b ))
+@assert a4[:d] == a1[:a] + a1[:b]
+
+## a4 = within(a2, :( d = a + b ))   # doesn't work - keys must be symbols
+## a4 = based_on(a3, :( d = a + b ))   # doesn't work - keys must be symbols
+
+test_group("DataFrame")
 
 srand(1)
 N = 20
@@ -224,11 +245,11 @@ df8 = within(df7, :(d4 = d3 + d3 + 1))
 within!(df8, :( d4 = d1 ))
 @assert df8["d1"] == df8["d4"]
 
-df8 = summarise(df7, :( d1 = d3 ))
+df8 = based_on(df7, :( d1 = d3 ))
 @assert df8["d1"] == df7["d3"]
-df8 = df7 | summarise(:( d1 = d3 ))
+df8 = df7 | based_on(:( d1 = d3 ))
 @assert df8["d1"] == df7["d3"]
-df8 = summarise(df7, :( sum_d3 = sum(d3) ))
+df8 = based_on(df7, :( sum_d3 = sum(d3) ))
 @assert df8[1,1] == sum(df7["d3"])
 
 
@@ -255,8 +276,8 @@ end
 
 df8 = df7 | groupby(["d2"]) | :( d3sum = sum(d3); d3mean = mean(nafilter(d3)) )
 @assert df8["d2"] == PooledDataVec[NA, "A", "B"] # may change if these end up getting sorted
-df9 = summarise(groupby(df7, "d2"),
-                :( d3sum = sum(d3); d3mean = mean(nafilter(d3)) ))
+df9 = based_on(groupby(df7, "d2"),
+               :( d3sum = sum(d3); d3mean = mean(nafilter(d3)) ))
 @assert df9 == df8
 
 df8 = within(groupby(df7, "d2"),
@@ -274,8 +295,7 @@ df8 = colwise(groupby(df7[[1,3]], "d1"), [:sum, :length])
 @assert df8[1,"d1_sum"] == 12
 @assert df8[2,"d1_length"] == 8
 
-## df8 = df7[[1,3]] | groupby("d1") | [:sum, :length]   # broken
-df9 = df7[[1,3]] | groupby(["d1"]) | [:sum, :length]
+df9 = df7[[1,3]] | groupby("d1") | [:sum, :length]
 @assert df9 == df8
 df9 = by(df7[[1,3]], "d1", [:sum, :length])
 @assert df9 == df8
