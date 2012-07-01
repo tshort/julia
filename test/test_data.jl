@@ -268,15 +268,15 @@ df8 = within(groupby(df7, "d2"),
 df8 = colwise(df7[[1,3]], :sum)
 @assert df8[1,"d1_sum"] == sum(df7["d1"])
 
-df8 = colwise(groupby(df7[[1,3]], "d1"), [:sum, :length])
-@assert nrow(df8) == 2
+df8 = colwise(groupby(df7, "d2"), [:sum, :length])
+@assert nrow(df8) == 3
 @assert ncol(df8) == 4
-@assert df8[1,"d1_sum"] == 12
+@assert df8[1,"d1_sum"] == 13
 @assert df8[2,"d1_length"] == 8
 
 ## df8 = df7[[1,3]] | groupby("d1") | [:sum, :length]   # broken
-df9 = df7[[1,3]] | groupby(["d1"]) | [:sum, :length]
+df9 = df7 | groupby(["d2"]) | [:sum, :length]
 @assert df9 == df8
-df9 = by(df7[[1,3]], "d1", [:sum, :length])
+df9 = by(df7, "d2", [:sum, :length])
 @assert df9 == df8
 
