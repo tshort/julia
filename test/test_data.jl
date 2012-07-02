@@ -204,6 +204,7 @@ test_group("ref")
 test_context("Within")
 test_group("Associative")
 
+srand(1)
 a1 = {:a => [1,2], :b => [3,4], :c => [5,6]}
 a2 = {"a" => [1,2], "b" => [3,4], "c" => [5,6]}
 a3 = {"a" => [1,2], "b" => [3,4], :c => [5,6]}
@@ -216,6 +217,14 @@ a3 = {"a" => [1,2], "b" => [3,4], :c => [5,6]}
 a4 = within(a1, :( d = a + b ))
 @assert a4[:d] == a1[:a] + a1[:b]
 @assert a4[:a] == a1[:a]
+
+a4 = within(a2, :( d = a + b ))
+@assert a4["d"] == a2["a"] + a2["b"]
+@assert a4["a"] == a2["a"]
+
+a4 = within(a3, :( d = a + b ))
+@assert a4[:d] == a3["a"] + a3["b"]
+@assert a4["a"] == a3["a"]
 
 a4 = based_on(a1, :( d = a + b ))
 @assert a4[:d] == a1[:a] + a1[:b]
