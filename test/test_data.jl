@@ -229,6 +229,12 @@ a4 = within(a3, :( d = a + b ))
 a4 = based_on(a1, :( d = a + b ))
 @assert a4[:d] == a1[:a] + a1[:b]
 
+a4 = based_on(a2, :( d = a + b ))
+@assert a4["d"] == a2["a"] + a2["b"]
+
+a4 = based_on(a3, :( d = a + b ))
+@assert a4[:d] == a3["a"] + a3["b"]
+
 ## a4 = within(a2, :( d = a + b ))   # doesn't work - keys must be symbols
 ## a4 = based_on(a3, :( d = a + b ))   # doesn't work - keys must be symbols
 
