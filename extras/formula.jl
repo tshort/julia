@@ -81,3 +81,50 @@ end
 
 # minimal first version: allow numbers and strings only, complete cases only
 
+_parallel_or(a,b) = [(x[1] || x[2])::Bool for x in zip(a, b)]
+_parallel_and(a,b) = [(x[1] && x[2])::Bool for x in zip(a, b)]
+complete_cases(df::AbstractDataFrame) = reduce(_parallel_and, colwise(x->!isna(x), df))
+
+type ModelMatrix{T}
+    model::Array{Float64}
+    response::Array{Float64}
+    model_colnames::Array{T}
+    response_colnames::Array{T}
+    
+end
+
+function model_matrix(mfarg::ModelFrame)
+    df = mfarg.df[complete_cases(mfarg.df),:]
+    
+    # for every model column or response column, if it's a non-number, generate
+    # dummies, otherwise create a simple numeric matrix
+    m = Array(Float64,nrow(df),0); r = Array(Float64,nrow(df),0)
+    mnames = {}; rnames = {}
+    for c in 1:ncol(df)
+        local newcol, newcolname
+        try
+            newcol = [convert(Float64, x)::Float64 for x in df[c]]
+            newcolname = [names(df)[c]]
+        catch
+            # ok, it can't be converted to a float. we need it to be a PooledDataVec
+            if !isa(df[c], PooledDataVec)
+                poolcol = PooledDataVec(df[c])
+            else
+                poolcol = df[c]
+            end
+            # now, create a matrix of n-1 columns of dummy variables
+            newcol = reduce(hcat, [[convert(Float64,x)::Float64 for x in (poolcol.refs .== i)] for i in 2:length(poolcol.pool)])
+            newcolname = [strcat(names(df)[c], ":", x) for x in poolcol.pool[2:length(poolcol.pool)]]
+        end
+        # if this is a response column...
+        if contains(mfarg.y_indexes, c)
+            r = hcat(r, newcol)
+            [push(rnames, nc) for nc in newcolname] # TODO: make this not stupid
+        else
+            m = hcat(m, newcol)
+            [push(mnames, nc) for nc in newcolname]
+        end
+    end
+    return ModelMatrix(m, r, mnames, rnames)
+end
+
