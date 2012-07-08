@@ -334,3 +334,21 @@ d1us = unstack(d1s, "key", "value", "idx")
 d1us2 = unstack(d1s2, "key", "value", "idx")
 @assert d1us["a"] == d1["a"]
 @assert d1us2["d"] == d1["d"]
+
+test_group("merge")
+
+srand(1)
+df1 = DataFrame(quote
+    a = shuffle([1:10])
+    b = ["A","B"][randi(2,10)]
+    v1 = randn(10)
+end)
+
+df2 = DataFrame(quote
+    a = shuffle(reverse([1:5]))
+    b2 = ["A","B","C"][randi(3,5)]
+    v2 = randn(5)
+end)
+
+m1 = merge(df1, df2, "a")
+@assert m1["b"] == DataVec["B", "A", "B", "A", "B"]
