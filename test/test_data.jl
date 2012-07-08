@@ -352,3 +352,14 @@ end)
 
 m1 = merge(df1, df2, "a")
 @assert m1["b"] == DataVec["B", "A", "B", "A", "B"]
+
+test_group("extras")
+
+srand(1)
+x = randi(10,10) - 4.0
+# a1 = cut(x, 4)     # BROKEN probable quantile bug related to .<
+a2 = cut(x, [-2, 3, 4.0])
+@assert a2[1] == "[-3.0,-2.0]"
+@assert a2[2] == "(-2.0,3.0]"
+@assert a2[4] == "(4.0,6.0]"
+
