@@ -326,7 +326,7 @@ d1s = stack(d1, ["a", "b"])
 d1s2 = stack(d1, ["c", "d"])
 @assert d1s[1:12,"c"] == d1["c"]
 @assert d1s[13:24,"c"] == d1["c"]
-@assert colnames(d1s) == ["key", "value", "c"]
+@assert colnames(d1s) == ["key", "value", "c", "d"]
 
 d1s["idx"] = [1:12, 1:12]
 d1s2["idx"] = [1:12, 1:12]
