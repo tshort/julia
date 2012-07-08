@@ -313,3 +313,24 @@ df9 = df7 | groupby(["d2"]) | [:sum, :length]
 df9 = by(df7, "d2", [:sum, :length])
 @assert df9 == df8
 
+test_group("reshape")
+
+d1 = DataFrame(quote
+    a = [1:3]
+    b = [1:4]
+    c = randn(12)
+    d = randn(12)
+end)
+
+d1s = stack(d1, ["a", "b"])
+d1s2 = stack(d1, ["c", "d"])
+@assert d1s[1:12,"c"] == d1["c"]
+@assert d1s[13:24,"c"] == d1["c"]
+@assert colnames(d1s) == ["key", "value", "c"]
+
+d1s["idx"] = [1:12, 1:12]
+d1s2["idx"] = [1:12, 1:12]
+d1us = unstack(d1s, "key", "value", "idx")
+d1us2 = unstack(d1s2, "key", "value", "idx")
+@assert d1us["a"] == d1["a"]
+@assert d1us2["d"] == d1["d"]
