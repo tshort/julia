@@ -147,17 +147,17 @@ test_context("DataFrames")
 
 test_group("constructors")
 df1 = DataFrame({dvint, dvstr}, ["Ints", "Strs"])
-#df2 = DataFrame({dvint, dvstr}) put back when we have default col names
-#df3 = DataFrame({dvint})
-#df4 = DataFrame([1:4 1:4])
-#df5 = DataFrame({DataVec[1,2,3,4], dvstr})
+df2 = DataFrame({dvint, dvstr}) 
+df3 = DataFrame({dvint})
+df4 = DataFrame([1:4 1:4])
+df5 = DataFrame({DataVec[1,2,3,4], dvstr})
 df6 = DataFrame({dvint, dvint, dvstr}, ["A", "B", "C"])
 
 test_group("description functions")
 @test nrow(df6) == 4
 @test ncol(df6) == 3
 @test all(names(df6) == ["A", "B", "C"])
-#@test all(names(df2) == [nothing, nothing])
+@test all(names(df2) == ["x1", "x2"])
 
 test_group("ref")
 @test df6[2,3] == "two"
@@ -172,7 +172,7 @@ test_group("ref")
 # lots more to do
 
 test_group("show")
-@test sshow(df1) == "      Ints Strs\n[1,]     1  one\n[2,]     2  two\n[3,]    NA   NA\n[4,]     4 four\n"
+@test sshow(df1) == "DataFrame  (4,2)\n        Ints   Strs\n[1,]       1  \"one\"\n[2,]       2  \"two\"\n[3,]      NA     NA\n[4,]       4 \"four\"\n"
 
 test_group("assign")
 df6[3] = DataVec["un", "deux", "troix", "quatre"]
@@ -235,8 +235,6 @@ a4 = based_on(a2, :( d = a + b ))
 a4 = based_on(a3, :( d = a + b ))
 @assert a4[:d] == a3["a"] + a3["b"]
 
-## a4 = within(a2, :( d = a + b ))   # doesn't work - keys must be symbols
-## a4 = based_on(a3, :( d = a + b ))   # doesn't work - keys must be symbols
 
 test_group("DataFrame")
 
@@ -310,7 +308,6 @@ df8 = colwise(groupby(df7, "d2"), [:sum, :length])
 @assert df8[1,"d1_sum"] == 13
 @assert df8[2,"d1_length"] == 8
 
-## df8 = df7[[1,3]] | groupby("d1") | [:sum, :length]   # broken
 df9 = df7 | groupby(["d2"]) | [:sum, :length]
 @assert df9 == df8
 df9 = by(df7, "d2", [:sum, :length])
