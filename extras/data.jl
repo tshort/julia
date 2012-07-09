@@ -587,6 +587,34 @@ end
 
 # TODO: div(dat, 2) works, but zz ./ 2 doesn't
 
+
+
+#
+# Base Vector{Float} support for NA's
+#
+# Notes:
+
+# - I restricted NA handling to Float's. It could be broader
+#   than this (maybe Number?), If so, the isna for most would be
+#   undefined, and na(T) would be undefined. But, it would cover
+#   other types that were able to implement NA's.
+# - NA and NaN are indistinguishable. With some work, we may be
+#   able to distinguish between the two.
+
+NA_Float64 = NaN 
+NA_Float32 = NaN32
+na(::Type{Float64}) = NA_Float64
+na(::Type{Float32}) = NA_Float32
+convert{T <: Float}(::Type{T}, x::NAtype) = na(T)
+promote_rule{T <: Float}(::Type{T}, ::Type{NAtype} ) = T
+isna{T <: Float}(x::T) = isnan(x)
+isna{T <: Float}(x::AbstractVector{T}) = x .!= x
+nafilter{T <: Float}(v::AbstractVector{T}) = v[!isna(v)]
+nareplace{T <: Float}(v::AbstractVector{T}, r::T) = [isna(v)[i] ? r : v[i] for i = 1:length(v)]
+
+    
+
+
 # an AbstractIndex is a thing that can be used to look up ordered things by name, but that
 # will also accept a position or set of positions or range or other things and pass them
 # through cleanly.
