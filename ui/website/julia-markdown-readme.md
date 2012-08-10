@@ -36,11 +36,19 @@ files can contain HTML). Here is an example:
     println("* bullet 2")
     ```
 
-Here is that code block:
+This will produce something like:
+
+## This is a second-level heading
+This is a normal paragraph with a word *emphasized*.
+
+* bullet 1
+  * bullet 1a
+* bullet 2
+
+Here is that code block for live use. Note that this will look funny
+on github because the output=markdown part messes things up.
 
 ```julia  output=markdown
-# Note: this will look funny on github because the output=markdown
-# part messes things up.
 println("## This is a second-level heading")
 println("This is a normal paragraph with a word *emphasized*.")
 println()
@@ -105,7 +113,7 @@ has a placeholder for results.
 
 *Server connection and Javascript processing* -- Communication with
 the server is handled using the same infrastructure as the web REPL
-(which looks like it's mostly thanks to Stephen Boyer). The file that
+(which looks like it's mostly thanks to Stephan Boyer). The file that
 does most of the work is `julia/ui/website/jlmd.js`. This is adapted
 from `julia/ui/website/repl.js`. Plotting is handled with D3, just
 like the web REPL. One difference is that results from Julia need to
@@ -120,8 +128,8 @@ Currently, things are a bit rough, but pages calculate okay. The web
 page collects three main types of output from the webserver:
 `MSG_OUTPUT_OTHER`, `MSG_OUTPUT_EVAL_RESULT`, and `MSG_OUTPUT_PLOT`.
 Of these, only `MSG_OUTPUT_EVAL_RESULT` has an indicator of the
-location. For the others, the active location is tracked. It mostly
-seems to work, but it might be fragile.
+calling location. For the others, the active location is tracked. It
+mostly seems to work, but it might be fragile.
 
 ## To-Do list
 
@@ -136,5 +144,9 @@ Lots of things could be done. Here's a list of short-term items:
 
 * Add an option for a Julia block to do calculations on page load,
   normal calculation, or all (page load and normal).
+
+* For plain output, use a fixed-point font by default.
+
+* Find a place to output errors from the server.
 
 * Spruce up the CSS.
