@@ -11,7 +11,7 @@ $(document).ready(function() {
             $('#main_markdown').html(converter.makeHtml(response)); 
         }
     });
-    init_session();
+    setTimeout(init_session, 500);
 });
 
 /*
@@ -43,6 +43,8 @@ var MSG_OUTPUT_EVAL_ERROR       = 9;
 var MSG_OUTPUT_PLOT             = 10;
 var MSG_OUTPUT_GET_USER         = 11;
 
+var user_name_map = new Array();
+var user_id_map = new Array();
 
 // the user name
 var user_name = "julia";
@@ -89,8 +91,13 @@ function indent_and_escape_html(str) {
 
 // the first request
 function init_session() {
-    outbox_queue.push([MSG_INPUT_START, "jlmd_res_1", "jlmd"]);
-    process_outbox();
+    $(".juliaresult").each(function(index, dom_ele) {
+        var id = $(dom_ele).attr('id');
+        outbox_queue.push([MSG_INPUT_START, id, "jlmd"]);
+        process_outbox();
+        outbox_queue.push([MSG_INPUT_GET_USER]);
+        process_outbox();
+    });
 }
 
 // check the server for data
@@ -142,17 +149,17 @@ message_handlers[MSG_OUTPUT_READY] = function(msg) {
 
 message_handlers[MSG_OUTPUT_MESSAGE] = function(msg) {
     // print the message
-    $("#"+msg[0]).html = "<span class=\"color-scheme-message\">"+escape_html(msg[0])+"</span><br /><br />";
+    $("#"+user_id_map[msg[0]]).html = "<span class=\"color-scheme-message\">"+escape_html(msg[0])+"</span><br /><br />";
 };
 
 message_handlers[MSG_OUTPUT_OTHER] = function(msg) {
     // just print the output
-    $("#"+msg[0]).html = escape_html(msg[0]);
+    $("#"+user_id_map[msg[0]]).html = escape_html(msg[0]);
 };
 
 message_handlers[MSG_OUTPUT_FATAL_ERROR] = function(msg) {
     // print the error message
-    $("#"+msg[0]).html = "<span class=\"color-scheme-error\">"+escape_html(msg[0])+"</span><br /><br />";
+    $("#"+user_id_map[msg[0]]).html = "<span class=\"color-scheme-error\">"+escape_html(msg[0])+"</span><br /><br />";
 
     // stop processing new messages
     dead = true;
@@ -168,16 +175,22 @@ message_handlers[MSG_OUTPUT_EVAL_INCOMPLETE] = function(msg) {
 
 message_handlers[MSG_OUTPUT_EVAL_ERROR] = function(msg) {
     // print the error message
-    $("#"+msg[0]).html = "<span class=\"color-scheme-error\">"+escape_html(msg[1])+"</span><br /><br />";
+    $("#"+user_id_map[msg[0]]).html = "<span class=\"color-scheme-error\">"+escape_html(msg[1])+"</span><br /><br />";
 };
 
 message_handlers[MSG_OUTPUT_EVAL_RESULT] = function(msg) {
     // print the result
-    if ($.trim(msg[1]) != "")
-        $("#"+msg[0]).html = escape_html(msg[1]);
+    if ($.trim(msg[1]) != ""){
+        $("#"+user_name_map[msg[0]]).html(escape_html(msg[1]));
+    }
 };
 
 message_handlers[MSG_OUTPUT_GET_USER] = function(msg) {
+    // set the user name
+    user_name = indent_and_escape_html(msg[0]);
+    user_id = indent_and_escape_html(msg[1]);
+    user_name_map[user_id] = user_name;        
+    user_id_map[user_name] = user_id;        
 }
 
 var plotters = {};
@@ -376,8 +389,9 @@ function process_inbox() {
             type = msg[0], msg = msg.slice(1),
             handler = message_handlers[type];
         console.log(type, msg);
-        if (typeof handler == "function")
+        if (typeof handler == "function") {
             handler(msg);
+        }
         if (dead)
             break;
     }
@@ -402,7 +416,7 @@ function callback(data, textStatus, jqXHR) {
     process_inbox();
 
     // send any new messages
-    // process_outbox();
+    process_outbox();
 
     // poll the server again shortly
     setTimeout(poll, poll_interval);
@@ -410,24 +424,12 @@ function callback(data, textStatus, jqXHR) {
 
 function calculate_block(index, dom_ele) {
     var code = $(dom_ele).find("pre").text();
-// console.log($.toJSON([MSG_INPUT_EVAL, "", "", code]));
-    var id = $(dom_ele).find(".juliaresult").attr('id');
-// console.log(id);
-    $.ajax({
-    	type: "POST",
-    	url: "/repl.scgi",
-    	data: {"request": $.toJSON([MSG_INPUT_EVAL, "jlmd_res_1", "jlmd", code])},
-    	dataType: "json",
-    	timeout: 500, // in milliseconds
-    	success: callback,
-    	error: function(request, status, err) {
-    	    //TODO: proper error handling
-    		if(status == "timeout") {
-    			waiting_for_response = false;
-    			setTimeout(poll,poll_interval);
-    		}
-    	}
-	});
+// console.log($.toJSON([MSG_INPUT_EVAL, user_name, user_id, code]));
+    var name = $(dom_ele).find(".juliaresult").attr('id');
+console.log($.toJSON([MSG_INPUT_EVAL, name, user_id_map[name], code]));
+console.log($.toJSON([MSG_INPUT_EVAL, name, user_id_map[name], code]));
+    outbox_queue.push([MSG_INPUT_EVAL, name, user_id_map[name], code]);
+    process_outbox();
 }
 
 function calculate() {

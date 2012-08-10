@@ -7,29 +7,32 @@ calculated (hit the `calculate` button), the output of each Julia
 section will appear below the input. Here's some example Markdown:
 
     ```julia
-    a = randn(5,6)
+    a = randn(12)
     dump(a)
     ```
 Here's the result in the page:
 
 ```julia
-a = randn(5,6)
-dump(a
+a = randn(12)
 ```
 
 Here's another entry:
 
 ```julia
-dump({:a => [1:30], :b => randn(3,3), "c" => ["a", "b"]})
+b = 99.99
+```
+
+```ju lia
+dump({:a => [1:30], :b => randn(9), "c" => ["a", "b"]})
 ```
 Here's a plot:
 
-```julia
-plot(cos, 0, 10)
+```ju lia
+#plot(cos, 0, 10)
 ```
 Here's an example of Markdown output from Julia:
 
-```julia
+```ju lia
 println("## This is a second-level heading")
 println("This is a normal paragraph with *emphasis*.")
 println()
@@ -66,7 +69,7 @@ city = {BOS, SFO, (NYC)}
 Each of the form labels above (`name`, `sex`, `phones`, and `city`)
 can be used as Julia variables. Here is a simple example:
 
-```julia invisible result=html
+```ju lia invisible result=html
 println("name = ", name)
 println("sex = ", sex)
 println("phones = ", phones)
