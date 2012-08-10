@@ -45,17 +45,8 @@ This is a normal paragraph with a word *emphasized*.
   * bullet 1a
 * bullet 2
 
-Here is that code block for live use. Note that this will look funny
-on github because the output=markdown part messes things up.
-
-```julia  output=markdown
-println("## This is a second-level heading")
-println("This is a normal paragraph with a word *emphasized*.")
-println()
-println("* bullet 1")
-println("  * bullet 1a")
-println("* bullet 2")
-```
+This code block is not included here for live use. (It will look funny
+on github because the output=markdown part messes things up.)
 
 Since this readme file is Markdown, this file can be used as a Julia
 MD page. Here is a form element (entered as `name` = `___`):
