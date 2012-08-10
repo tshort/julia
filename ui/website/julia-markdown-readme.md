@@ -136,8 +136,6 @@ Lots of things could be done. Here's a list of short-term items:
 * Add an option for a Julia block to do calculations on page load,
   normal calculation, or all (page load and normal).
 
-* For plain output, use a fixed-point font by default.
-
 * Find a place to output errors from the server.
 
 * Spruce up the CSS.

@@ -84,7 +84,7 @@ var dead = false;
 // escape html
 function escape_html(str) {
     // escape ampersands, angle brackets, tabs, and newlines
-    return str.replace(/\t/g, "    ").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br />");
+    return str.replace(/\t/g, "    ").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "\n<br/>").replace(/ /g, "&#160;");
 }
 
 // indent and escape html
@@ -96,10 +96,13 @@ function indent_and_escape_html(str) {
 
 // the first request
 function init_session() {
+    // Set up a session, starting with a user for the forms, then set
+    // up a usr of each result section.
     outbox_queue.push([MSG_INPUT_START, "jlmd_form", "jlmd"]);
     process_outbox();
     outbox_queue.push([MSG_INPUT_GET_USER]);
     process_outbox();
+    // TODO check what happens if we dynamically create a Julia block.
     $(".juliaresult").each(function(index, dom_ele) {
         var id = $(dom_ele).attr('id');
         outbox_queue.push([MSG_INPUT_START, id, "jlmd"]);
@@ -162,7 +165,7 @@ message_handlers[MSG_OUTPUT_MESSAGE] = function(msg) {
 };
 
 message_handlers[MSG_OUTPUT_OTHER] = function(msg) {
-    // just print the output
+    // print the output to $active_element.
     var payload = msg[0];
     var res = $active_element.find(".juliaresult");
     var is_empty = res.html() == "";
@@ -170,7 +173,7 @@ message_handlers[MSG_OUTPUT_OTHER] = function(msg) {
         var converter = new Showdown.converter();
         payload = converter.makeHtml(payload);
     } else {
-        payload = escape_html(payload);
+        payload = "<div class='juliaplain'>" + escape_html(payload) + "</div>";
     }
     if (!is_empty) {
         payload = res.html() + "<br />" + payload;
@@ -189,24 +192,24 @@ message_handlers[MSG_OUTPUT_FATAL_ERROR] = function(msg) {
 };
 
 message_handlers[MSG_OUTPUT_EVAL_INPUT] = function(msg) {
-    console.log("EVAL_INPUT", $("#"+msg[1]));
+    // assign the $active_element to the element currently being processed.
     $active_element = $("#"+msg[1]).parents(".juliablock").first();
 }
 
 message_handlers[MSG_OUTPUT_EVAL_INCOMPLETE] = function(msg) {
-    $("#jlmd_error_div").html("<span class=\"color-scheme-error\">"+escape_html(msg[1])+"</span><br /><br />");
+    $("#" + user_name_map[msg[0]]).html("<span class=\"color-scheme-error\">Error: incomplete input</span><br /><br />");
 };
 
 message_handlers[MSG_OUTPUT_EVAL_ERROR] = function(msg) {
-    // print the error message
-    $("#jlmd_error_div").html("<span class=\"color-scheme-error\">"+escape_html(msg[1])+"</span><br /><br />");
+    // print the error message 
+    $("#" + user_name_map[msg[0]]).html("<span class=\"color-scheme-error\">"+escape_html(msg[1])+"</span><br /><br />");
 };
 
 message_handlers[MSG_OUTPUT_EVAL_RESULT] = function(msg) {
-    // print the result
-    // if ($.trim(msg[1]) != ""){
-    //     $("#"+user_name_map[msg[0]]).html($("#"+user_name_map[msg[0]]).html() + escape_html(msg[1]));
-    // }
+    // Print the result to $active_element. This handler also has the
+    // user_id as msg[0], so use that to check. Also, after receiving
+    // the results of one block, activate calculation of the next
+    // block.
     var payload = msg[1];
     var res = $active_element.find(".juliaresult");
     var is_empty = res.html() == "";
@@ -214,7 +217,7 @@ message_handlers[MSG_OUTPUT_EVAL_RESULT] = function(msg) {
         var converter = new Showdown.converter();
         payload = converter.makeHtml(payload);
     } else {
-        payload = escape_html(payload);
+        payload = "<div class='juliaplain'>" + escape_html(payload) + "</div>";
     }
     if (!is_empty) {
         payload = res.html() + "<br />" + payload;
@@ -227,7 +230,7 @@ message_handlers[MSG_OUTPUT_EVAL_RESULT] = function(msg) {
 };
 
 message_handlers[MSG_OUTPUT_GET_USER] = function(msg) {
-    // set the user name
+    // set the user name and the maps between user_id and user_name
     user_name = indent_and_escape_html(msg[0]);
     user_id = indent_and_escape_html(msg[1]);
     user_name_map[user_id] = user_name;        
@@ -463,6 +466,7 @@ function callback(data, textStatus, jqXHR) {
 }
 
 function calculate_form(index, dom_ele) {
+    // Send commands to Julia to turn form elements into Julia variables.
     if (dom_ele.type == "text") {
         outbox_queue.push([MSG_INPUT_EVAL, "jlmd_form", user_id_map["jlmd_form"], dom_ele.name + "= \"" + dom_ele.value + "\""]);
     } else if (dom_ele.type == "radio" && dom_ele.checked) {
@@ -505,14 +509,19 @@ function next_node(node) { // non-recursive
         //     return [];
         // }
     // }
+    // TODO make this more robust for different arrangements.
     return [];
 }  
 
-function calculate() {
-    // $active_element = next_node($("#main_markdown"));
+function calculate() {  // page calculation
+    // set $active_element
     $active_element = next_node($("#main_markdown"));
+    // calculate form elements first
+    // TODO what about actively generated form elements?
     $(":input").each(calculate_form); 
     process_outbox();
+    // Now, start calculation with the first block. Calculations chain
+    // from there.
     console.log("ACTIVE EL",$active_element);
     if ($active_element.length > 0) {
         calculate_block($active_element);

@@ -6,6 +6,10 @@ div.juliablock pre { background-color: white; font-family: monospace;
     margin-top:0em; margin-bottom:0em;
 }
 
+div.juliaplain { font-family: monospace;
+}
+
+
 .juliaresult {
     margin-top:0em; margin-bottom:0em;
     background-color: infobackground;

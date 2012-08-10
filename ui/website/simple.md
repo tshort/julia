@@ -7,7 +7,7 @@ calculated (hit the `calculate` button), the output of each Julia
 section will appear below the input. Here's some example Markdown:
 
 ```julia  
-randn(1)
+{:a => randn(10), :b => {randn(5), "asdf", 1:5}} | dump
 ```
 Another:
 
