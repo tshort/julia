@@ -14,7 +14,6 @@ section will appear below the input. Here's some example Markdown:
 
     ```julia
     a = randn(12)
-    dump(a)
     ```
 
 Here is that code block; it can be evaluated when run
@@ -40,6 +39,8 @@ files can contain HTML). Here is an example:
 Here is that code block:
 
 ```julia  output=markdown
+# Note: this will look funny on github because the output=markdown
+# part messes things up.
 println("## This is a second-level heading")
 println("This is a normal paragraph with a word *emphasized*.")
 println()
