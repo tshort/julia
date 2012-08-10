@@ -572,8 +572,8 @@ function next_node(node) { // non-recursive
 function calculate() {
     // $active_element = next_node($("#main_markdown"));
     $active_element = next_node($("#main_markdown"));
-    // $(":input").each(calculate_form); 
-    // process_outbox();
+    $(":input").each(calculate_form); 
+    process_outbox();
     console.log("ACTIVE EL",$active_element);
     if ($active_element.length > 0) {
         calculate_block($active_element);

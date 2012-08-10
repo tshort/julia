@@ -61,13 +61,13 @@ city = {BOS, SFO, (NYC)}
 ```
 Here are the form elements that result from the Markdown above.
 
-name == ___
+name = ___
 
-sex == (x) male () female
+sex = (x) male () female
 
-phones == [] Android [x] iPhone [x] Blackberry
+phones = [] Android [x] iPhone [x] Blackberry
 
-city == {BOS, SFO, (NYC)}
+city = {BOS, SFO, (NYC)}
 
 Each of the form labels above (`name`, `sex`, `phones`
 [this might be a little different], and `city`) can be used as Julia
@@ -77,6 +77,6 @@ variables. Here is a simple example:
 println("name = ", name)
 println("sex = ", sex)
 #println("phones = ", phones)
-#println("city = ", city)
+println("city = ", city)
 ```
 
