@@ -433,8 +433,8 @@ function calculate_form(index, dom_ele) {
         outbox_queue.push([MSG_INPUT_EVAL, "jlmd_form", user_id_map["jlmd_form"], dom_ele.name + "= \"" + dom_ele.value + "\""]);
     } else if (dom_ele.type == "checkbox") {
         outbox_queue.push([MSG_INPUT_EVAL, "jlmd_form", user_id_map["jlmd_form"], dom_ele.value + "= " + ((dom_ele.checked) ? "true" : "false")]);
-    } else if (dom_ele.type == "select") {
-        outbox_queue.push([MSG_INPUT_EVAL, "jlmd_form", user_id_map["jlmd_form"], dom_ele.name + "= \"" + dom_ele[dom_ele.selectedIndex] + "\""]);
+    } else if (dom_ele.nodeName.toLowerCase() == "select") {
+        outbox_queue.push([MSG_INPUT_EVAL, "jlmd_form", user_id_map["jlmd_form"], dom_ele.name + "= \"" + dom_ele[dom_ele.selectedIndex].text + "\""]);
     } 
     process_outbox();
 }

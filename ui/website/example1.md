@@ -69,8 +69,9 @@ phones = [] Android [x] iPhone [x] Blackberry
 
 city = {BOS, SFO, (NYC)}
 
-Each of the form labels above (`name`, `sex`, `phones`, and `city`)
-can be used as Julia variables. Here is a simple example:
+Each of the form labels above (`name`, `sex`, `phones`
+[this might be a little different], and `city`) can be used as Julia
+variables. Here is a simple example:
 
 ```julia invisible result=html
 println("name = ", name)
