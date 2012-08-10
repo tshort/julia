@@ -49,7 +49,9 @@ linked from julia/ui/website/).
 
 ## Examples
 
-* [example1.md](http://localhost:2000/jlmd.htm?example1.md)
+* example1.md --
+  [live local link](http://localhost:2000/jlmd.htm?example1.md),
+  [normal link](example1.md)
 
 
 ## Inspiration / Ideas
