@@ -91,6 +91,10 @@ function indent_and_escape_html(str) {
 
 // the first request
 function init_session() {
+    outbox_queue.push([MSG_INPUT_START, "jlmd_form", "jlmd"]);
+    process_outbox();
+    outbox_queue.push([MSG_INPUT_GET_USER]);
+    process_outbox();
     $(".juliaresult").each(function(index, dom_ele) {
         var id = $(dom_ele).attr('id');
         outbox_queue.push([MSG_INPUT_START, id, "jlmd"]);
@@ -149,17 +153,17 @@ message_handlers[MSG_OUTPUT_READY] = function(msg) {
 
 message_handlers[MSG_OUTPUT_MESSAGE] = function(msg) {
     // print the message
-    $("#"+user_id_map[msg[0]]).html = "<span class=\"color-scheme-message\">"+escape_html(msg[0])+"</span><br /><br />";
+    $("#"+user_id_map[msg[0]]).html("<span class=\"color-scheme-message\">"+escape_html(msg[0])+"</span><br /><br />");
 };
 
 message_handlers[MSG_OUTPUT_OTHER] = function(msg) {
     // just print the output
-    $("#"+user_id_map[msg[0]]).html = escape_html(msg[0]);
+    $("#"+user_id_map[msg[0]]).html(escape_html(msg[0]));
 };
 
 message_handlers[MSG_OUTPUT_FATAL_ERROR] = function(msg) {
     // print the error message
-    $("#"+user_id_map[msg[0]]).html = "<span class=\"color-scheme-error\">"+escape_html(msg[0])+"</span><br /><br />";
+    $("#"+user_id_map[msg[0]]).html("<span class=\"color-scheme-error\">"+escape_html(msg[0])+"</span><br /><br />");
 
     // stop processing new messages
     dead = true;
@@ -175,7 +179,7 @@ message_handlers[MSG_OUTPUT_EVAL_INCOMPLETE] = function(msg) {
 
 message_handlers[MSG_OUTPUT_EVAL_ERROR] = function(msg) {
     // print the error message
-    $("#"+user_id_map[msg[0]]).html = "<span class=\"color-scheme-error\">"+escape_html(msg[1])+"</span><br /><br />";
+    $("#"+user_id_map[msg[0]]).html("<span class=\"color-scheme-error\">"+escape_html(msg[1])+"</span><br /><br />");
 };
 
 message_handlers[MSG_OUTPUT_EVAL_RESULT] = function(msg) {
@@ -422,17 +426,28 @@ function callback(data, textStatus, jqXHR) {
     setTimeout(poll, poll_interval);
 }
 
+function calculate_form(index, dom_ele) {
+    if (dom_ele.type == "text") {
+        outbox_queue.push([MSG_INPUT_EVAL, "jlmd_form", user_id_map["jlmd_form"], dom_ele.name + "= \"" + dom_ele.value + "\""]);
+    } else if (dom_ele.type == "radio" && dom_ele.checked) {
+        outbox_queue.push([MSG_INPUT_EVAL, "jlmd_form", user_id_map["jlmd_form"], dom_ele.name + "= \"" + dom_ele.value + "\""]);
+    } else if (dom_ele.type == "checkbox") {
+        outbox_queue.push([MSG_INPUT_EVAL, "jlmd_form", user_id_map["jlmd_form"], dom_ele.value + "= " + ((dom_ele.checked) ? "true" : "false")]);
+    } else if (dom_ele.type == "select") {
+        outbox_queue.push([MSG_INPUT_EVAL, "jlmd_form", user_id_map["jlmd_form"], dom_ele.name + "= \"" + dom_ele[dom_ele.selectedIndex] + "\""]);
+    } 
+    process_outbox();
+}
+
 function calculate_block(index, dom_ele) {
     var code = $(dom_ele).find("pre").text();
-// console.log($.toJSON([MSG_INPUT_EVAL, user_name, user_id, code]));
     var name = $(dom_ele).find(".juliaresult").attr('id');
-console.log($.toJSON([MSG_INPUT_EVAL, name, user_id_map[name], code]));
-console.log($.toJSON([MSG_INPUT_EVAL, name, user_id_map[name], code]));
     outbox_queue.push([MSG_INPUT_EVAL, name, user_id_map[name], code]);
     process_outbox();
 }
 
 function calculate() {
+    $(":input").each(calculate_form);
     $(".juliablock").each(calculate_block);
 }
 

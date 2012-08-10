@@ -19,20 +19,23 @@ a = randn(12)
 Here's another entry:
 
 ```julia
-b = 99.99
+b = 99.99 * a[1]
 ```
 
-```ju lia
-dump({:a => [1:30], :b => randn(9), "c" => ["a", "b"]})
+```julia
+{:a => [1:30], :b => randn(9), "c" => ["a", "b"]}
 ```
-Here's a plot:
+Here's a plot (feature not implemented):
 
-```ju lia
+```julia
 #plot(cos, 0, 10)
 ```
-Here's an example of Markdown output from Julia:
 
-```ju lia
+Here's an example of Markdown output from Julia (this feature is not
+implemented, so this will be printed verbatim):
+
+
+```julia
 println("## This is a second-level heading")
 println("This is a normal paragraph with *emphasis*.")
 println()
@@ -69,10 +72,10 @@ city = {BOS, SFO, (NYC)}
 Each of the form labels above (`name`, `sex`, `phones`, and `city`)
 can be used as Julia variables. Here is a simple example:
 
-```ju lia invisible result=html
+```julia invisible result=html
 println("name = ", name)
 println("sex = ", sex)
-println("phones = ", phones)
-println("city = ", city)
+#println("phones = ", phones)
+#println("city = ", city)
 ```
 
