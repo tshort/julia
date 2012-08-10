@@ -3,8 +3,41 @@ html {margin: 0.5em}
 body { background-color: #eeeeee; font-family: georgia; padding:0; margin:0.5em;}
 
 div.juliablock pre { background-color: white; font-family: monospace;
-    margin-top:0.5em; margin-bottom:0em;
+    margin-top:0em; margin-bottom:0em;
 }
 
-.juliaresult { background-color: infobackground; font-family:monospace;
+.juliaresult {
+    margin-top:0em; margin-bottom:0em;
+    background-color: infobackground;
+}
+
+/* for plotting */
+
+svg .hrule line, svg .vrule line {
+  shape-rendering: crispEdges;
+  stroke: #dadada;
+}
+
+svg .hrule2 line, svg .vrule2 line {
+  shape-rendering: crispEdges;
+  stroke: #aaaaaa;
+}
+
+svg .line {
+  fill: none;
+  stroke-width: 1.5px;
+  stroke: #4d87b7;
+}
+
+svg text {
+  fill: #444444;
+}
+svg rect {
+  fill: #4d87c7;
+  stroke: #FFFFFF;
+}
+
+/* for Internet Explorer */
+a img {
+    border: none;
 }

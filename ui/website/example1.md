@@ -28,19 +28,19 @@ b = 99.99 * a[1]
 Here's a plot (feature not implemented):
 
 ```julia
-#plot(cos, 0, 10)
+plot(cos, 0, 10)
 ```
 
 Here's an example of Markdown output from Julia (this feature is not
 implemented, so this will be printed verbatim):
 
 
-```julia
+```julia  output=markdown
 println("## This is a second-level heading")
 println("This is a normal paragraph with *emphasis*.")
 println()
 println("* bullet 1")
-println("** bullet 1a")
+println("  * bullet 1a")
 println("* bullet 2")
 ```
 
@@ -61,13 +61,13 @@ city = {BOS, SFO, (NYC)}
 ```
 Here are the form elements that result from the Markdown above.
 
-name = ___
+name == ___
 
-sex = (x) male () female
+sex == (x) male () female
 
-phones = [] Android [x] iPhone [x] Blackberry
+phones == [] Android [x] iPhone [x] Blackberry
 
-city = {BOS, SFO, (NYC)}
+city == {BOS, SFO, (NYC)}
 
 Each of the form labels above (`name`, `sex`, `phones`
 [this might be a little different], and `city`) can be used as Julia
