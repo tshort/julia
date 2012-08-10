@@ -1,0 +1,10 @@
+html {margin: 0.5em}
+
+body { background-color: #eeeeee; font-family: georgia; padding:0; margin:0.5em;}
+
+div.juliablock pre { background-color: white; font-family: monospace;
+    margin-top:0.5em; margin-bottom:0em;
+}
+
+.juliaresult { background-color: infobackground; font-family:monospace;
+}
