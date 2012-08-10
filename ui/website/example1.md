@@ -73,7 +73,7 @@ Each of the form labels above (`name`, `sex`, `phones`
 [this might be a little different], and `city`) can be used as Julia
 variables. Here is a simple example:
 
-```julia invisible result=html
+```julia 
 println("name = ", name)
 println("sex = ", sex)
 #println("phones = ", phones)
