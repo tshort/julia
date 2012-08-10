@@ -1,70 +1,9 @@
 jlmd = function() {
 
-var color_schemes = [
-    ["Dark", {
-        background_color: "#000000",
-        text_color: "#dddddd",
-        message_color: "#0000aa",
-        error_color: "#ff0000",
-        prompt_color: "#00bb00",
-        plot_grid_color: "#333333",
-        plot_axis_color: "#666666",
-        plot_text_color: "#dddddd",
-        plot_line_color: "#4d87c7",
-        plot_rect_color: "#4d87c7",
-        plot_rect_stroke_width: "0",
-        plot_rect_stroke_color: "#FFFFFF",
-    }],
-    ["Light", {
-        background_color: "#f8f8f8",
-        text_color: "#444444",
-        message_color: "#0000aa",
-        error_color: "#ff0000",
-        prompt_color: "#00aa00",
-        plot_grid_color: "#dadada",
-        plot_axis_color: "#aaaaaa",
-        plot_text_color: "#444444",
-        plot_line_color: "#4d87b7",
-        plot_rect_color: "#4d87c7",
-        plot_rect_stroke_width: "0",
-        plot_rect_stroke_color: "#FFFFFF",
-    }],
-];
-
-// the current color scheme
-var current_color_scheme = 0;
-
-// Fetch items out of local storage if they exist
-if (Modernizr.localstorage) {
-    if (localStorage.getItem("current_color_scheme")) {
-        current_color_scheme = localStorage.getItem("current_color_scheme");
-    }
-}
-
-// apply a particular color scheme -- call this every time the terminal content changes
-function apply_color_scheme() {
-    $("form#terminal-form").css("background-color", color_schemes[current_color_scheme][1].background_color);
-    $("div#terminal").css("color", color_schemes[current_color_scheme][1].text_color);
-    $("textarea#terminal-input").css("color", color_schemes[current_color_scheme][1].text_color);
-    $("span.color-scheme-message").css("color", color_schemes[current_color_scheme][1].message_color);
-    $("span.color-scheme-error").css("color", color_schemes[current_color_scheme][1].error_color);
-    $("span.color-scheme-prompt").css("color", color_schemes[current_color_scheme][1].prompt_color);
-    $("svg .hrule line, svg .vrule line").css("stroke", color_schemes[current_color_scheme][1].plot_grid_color);
-    $("svg .hrule2 line, svg .vrule2 line").css("stroke", color_schemes[current_color_scheme][1].plot_axis_color);
-    $("svg text").css("fill", color_schemes[current_color_scheme][1].plot_text_color);
-    $("svg .line").css("stroke", color_schemes[current_color_scheme][1].plot_line_color);
-    $("svg .rect").css("fill", color_schemes[current_color_scheme][1].plot_rect_color);
-    $("svg .rect").css("stroke", color_schemes[current_color_scheme][1].plot_rect_stroke_width);
-    
-    if (Modernizr.localstorage) {
-        localStorage.setItem("current_color_scheme", current_color_scheme);
-    }
-}
 
 
 // when the DOM loads
 $(document).ready(function() {
-    apply_color_scheme();
     $.ajax({
         type: "GET",
         url: window.location.search.substring(1),

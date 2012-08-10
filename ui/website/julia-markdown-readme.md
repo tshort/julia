@@ -24,6 +24,30 @@ from the Julia webserver.
 a = randn(12)
 ```
 
+In the Julia block header, you can also specify the result type as
+`markdown` for Markdown output (also useful for HTML, since Markdown
+files can contain HTML). Here is an example:
+
+    ```julia  output=markdown
+    println("## This is a second-level heading")
+    println("This is a normal paragraph with a word *emphasized*.")
+    println()
+    println("* bullet 1")
+    println("  * bullet 1a")
+    println("* bullet 2")
+    ```
+
+Here is that code block:
+
+```julia  output=markdown
+println("## This is a second-level heading")
+println("This is a normal paragraph with a word *emphasized*.")
+println()
+println("* bullet 1")
+println("  * bullet 1a")
+println("* bullet 2")
+```
+
 Since this readme file is Markdown, this file can be used as a Julia
 MD page. Here is a form element (entered as `name` = `___`):
 
@@ -47,6 +71,7 @@ must all be in the julia/usr/lib/julia/website/ directory (possibly
 linked from julia/ui/website/).
 
 
+
 ## Examples
 
 * example1.md --
@@ -66,6 +91,9 @@ linked from julia/ui/website/).
 
 ## How it works
 
+Most of the infrastructure for this was already in place for the web
+REPL. 
+
 *Markdown conversion* -- The Markdown is converted to HTML using a
 modified version of Showdown. The modifications combine a github
 version of [Showdown](https://github.com/coreyti/showdown/) with an
@@ -74,28 +102,38 @@ some small additions to support the Julia MD extensions like
 `[[[Calculate]]]`. Each Julia code block is wrapped with a `DIV` that
 has a placeholder for results. 
 
-*Server connection* -- Communication with the server is handled using
-the same infrastructure as the web REPL. One difference is that
-results from Julia need to be plugged into appropriate places in the
-HTML file. That's done by making a separate user_name (and user_id)
-for each Julia code block. That way, when the appropriate evaluated
-results are returned from the server, the results are plugged into the
-right spot.
-
+*Server connection and Javascript processing* -- Communication with
+the server is handled using the same infrastructure as the web REPL
+(which looks like it's mostly thanks to Stephen Boyer). The file that
+does most of the work is `julia/ui/website/jlmd.js`. This is adapted
+from `julia/ui/website/repl.js`. Plotting is handled with D3, just
+like the web REPL. One difference is that results from Julia need to
+be plugged into appropriate places in the HTML file. That's done by
+making a separate user\_name (and user\_id) for each Julia code block.
+That way, when the appropriate evaluated results are returned from the
+server, the results are plugged into the right spot.
 
 ## Current status
 
-Currently, things are partly working. The main issues are:
+Currently, things are a bit rough, but pages calculate okay. The web
+page collects three main types of output from the webserver:
+`MSG_OUTPUT_OTHER`, `MSG_OUTPUT_EVAL_RESULT`, and `MSG_OUTPUT_PLOT`.
+Of these, only `MSG_OUTPUT_EVAL_RESULT` has an indicator of the
+location. For the others, the active location is tracked. It mostly
+seems to work, but it might be fragile.
 
-* *Intermittent output* -- Sometimes, commands don't get through, and
-   sometimes, results are lost.
+## To-Do list
 
-* *`MSG_OUTPUT_OTHER`* -- Evaluated results should be sent back to the
-        browser with type `MSG_OUTPUT_EVAL_RESULT`, but much of the
-        time, they come through with `MSG_OUTPUT_OTHER`. The problem
-        with that is that `MSG_OUTPUT_OTHER` doesn't have the `user_id`,
-        so the results can't be put into the right spot.
+Lots of things could be done. Here's a list of short-term items:
 
-* *Plotting* -- The current plot messages don't pass along the
-   `user_id` associated with the caller. That means, we don't know
-   where to plot something.
+* Get a new session for each web page. (It's nice the way it is for
+  debugging--you can use a web REPL to watch what the web page is
+  doing.)
+
+* Add options for Julia blocks to hide the input and/or the output.
+  Maybe use global options for these.
+
+* Add an option for a Julia block to do calculations on page load,
+  normal calculation, or all (page load and normal).
+
+* Spruce up the CSS.
