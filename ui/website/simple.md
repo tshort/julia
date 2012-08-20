@@ -1,15 +1,28 @@
-# This is a test of Julia MD pages
 
 ## Basic code blocks
 
-Here is a basic [Julia](http://www.julialang.org) input section. When the page is
-calculated (hit the `calculate` button), the output of each Julia
-section will appear below the input. Here's some example Markdown:
-
-```julia  
-{:a => randn(10), :b => {randn(5), "asdf", 1:5}} | dump
+```julia
+a = randn(12)
 ```
-Another:
+
+[[[Calculate]]]
+
+
+```julia output=markdown 
+println("## Results")
+```
+
+```julia 
+a = 999.9
+```
+
+```julia 
+println("## Results 1")
+```
+
+```julia 
+println("## Results 2")
+```
 
 ```julia  output=markdown
 println("## This is a second-level heading")
@@ -20,9 +33,10 @@ println("  * bullet 1a")
 println("* bullet 2")
 ```
 
-Here's another:
+name = ___
 
-```julia  
-plot(sin,0,10)
-```
-[[[Calculate]]]
+sex = (x) male () female
+
+phones = [] Android [x] iPhone [x] Blackberry
+
+city = {BOS, SFO, (NYC)}

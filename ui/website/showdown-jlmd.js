@@ -1172,7 +1172,7 @@ var _DoJuliaGithubCodeBlocks = function(text) {
 			codeblock = codeblock.replace(/^\n+/g,""); // trim leading newlines
 			codeblock = codeblock.replace(/\n+$/g,""); // trim trailing whitespace
 
-			codeblock = "<div class=\"juliablock\" " + language + "><pre><code>" + codeblock + 
+			codeblock = "<div class=\"juliablock\" " + language + " run='normal'><pre><code>" + codeblock + 
                         "\n</code></pre><div class = \"juliaresult\" id=\"" + id() + "\"></div></div>";
 
 			return hashBlock(codeblock);

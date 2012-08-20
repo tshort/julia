@@ -10,9 +10,13 @@ $(document).ready(function() {
         success: function (response) {
             var converter = new Showdown.converter();
             $('#main_markdown').html(converter.makeHtml(response)); 
+            $("#jlmd_error_div").html("<span class='color-scheme-message'>&lt;initializing&gt;</span>");
+            setTimeout(init_session, 300);
         }
     });
-    setTimeout(init_session, 500);
+    $("body, input, textarea").keydown(function(e){    // F9 to calculate the page.
+        if(e.which==120) calculate();
+    });
 });
 
 /*
@@ -45,11 +49,17 @@ var MSG_OUTPUT_PLOT             = 10;
 var MSG_OUTPUT_GET_USER         = 11;
 
 // active node for page calculating 
-var $active_element = []; 
+var $active_element = $("#main_markdown");
 
 // map from user_id to and from user_name
 var user_name_map = new Array();
 var user_id_map = new Array();
+
+// the session
+var run_mode = "init";   // "init" for the first pass; "normal" after that
+
+// the session
+var jlmd_session = "jlmd";
 
 // the user name
 var user_name = "julia";
@@ -80,11 +90,13 @@ var new_line = true;
 // keep track of whether we have received a fatal message
 var dead = false;
 
+// global scroll position; crude but mainly seems to work
+var scroll_position = 0; 
 
 // escape html
 function escape_html(str) {
     // escape ampersands, angle brackets, tabs, and newlines
-    return str.replace(/\t/g, "    ").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "\n<br/>").replace(/ /g, "&#160;");
+    return str.replace(/\t/g, "    ").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br/>").replace(/ /g, "&#160;");
 }
 
 // indent and escape html
@@ -98,14 +110,15 @@ function indent_and_escape_html(str) {
 function init_session() {
     // Set up a session, starting with a user for the forms, then set
     // up a usr of each result section.
-    outbox_queue.push([MSG_INPUT_START, "jlmd_form", "jlmd"]);
+    jlmd_session = "jlmd_" + Math.floor(Math.random() * 100000);
+    outbox_queue.push([MSG_INPUT_START, "jlmd_form", jlmd_session]);
     process_outbox();
     outbox_queue.push([MSG_INPUT_GET_USER]);
     process_outbox();
     // TODO check what happens if we dynamically create a Julia block.
     $(".juliaresult").each(function(index, dom_ele) {
         var id = $(dom_ele).attr('id');
-        outbox_queue.push([MSG_INPUT_START, id, "jlmd"]);
+        outbox_queue.push([MSG_INPUT_START, id, jlmd_session]);
         process_outbox();
         outbox_queue.push([MSG_INPUT_GET_USER]);
         process_outbox();
@@ -154,10 +167,17 @@ function process_outbox() {
 // an array of message handlers
 var message_handlers = [];
 
-message_handlers[MSG_OUTPUT_NULL] = function(msg) {}; // do nothing
+
 
 message_handlers[MSG_OUTPUT_READY] = function(msg) {
+    // get rid of the welcome message
+    $("#jlmd_error_div").html("");
+    process_outbox();
+    setTimeout(calculate, 400); // This calculates the page for run_mode=="init".
 };
+
+
+message_handlers[MSG_OUTPUT_NULL] = function(msg) {}; // do nothing
 
 message_handlers[MSG_OUTPUT_MESSAGE] = function(msg) {
     // print the message
@@ -176,9 +196,13 @@ message_handlers[MSG_OUTPUT_OTHER] = function(msg) {
         payload = "<div class='juliaplain'>" + escape_html(payload) + "</div>";
     }
     if (!is_empty) {
-        payload = res.html() + "<br />" + payload;
+        payload = res.html() + payload;
     }
-    res.html(payload);
+    var output_is_none = $active_element.attr("output") == "none";
+    if (!output_is_none && $.trim(msg[0]) != "") {
+        res.html(payload);
+        jQuery(window).scrollTop(scroll_position);
+    }
 };
 
 message_handlers[MSG_OUTPUT_FATAL_ERROR] = function(msg) {
@@ -194,6 +218,7 @@ message_handlers[MSG_OUTPUT_FATAL_ERROR] = function(msg) {
 message_handlers[MSG_OUTPUT_EVAL_INPUT] = function(msg) {
     // assign the $active_element to the element currently being processed.
     $active_element = $("#"+msg[1]).parents(".juliablock").first();
+    console.log("ACTIVE ELEMENT", $active_element);
 }
 
 message_handlers[MSG_OUTPUT_EVAL_INCOMPLETE] = function(msg) {
@@ -210,6 +235,7 @@ message_handlers[MSG_OUTPUT_EVAL_RESULT] = function(msg) {
     // user_id as msg[0], so use that to check. Also, after receiving
     // the results of one block, activate calculation of the next
     // block.
+    if ($active_element.length == 0) return;
     var payload = msg[1];
     var res = $active_element.find(".juliaresult");
     var is_empty = res.html() == "";
@@ -220,11 +246,17 @@ message_handlers[MSG_OUTPUT_EVAL_RESULT] = function(msg) {
         payload = "<div class='juliaplain'>" + escape_html(payload) + "</div>";
     }
     if (!is_empty) {
-        payload = res.html() + "<br />" + payload;
+        payload = res.html() + payload;
     }
-    if (res.attr("id") == user_name_map[msg[0]]) {
-        res.html(payload);
-        console.log("NEXT_NODE", next_node($active_element));
+    console.log(output_is_none, msg[1], msg[0], user_name_map[msg[0]], res);
+    if (res.attr("id") == user_name_map[msg[0]] && res.attr("id") != "jlmd_form") {
+        // var output_is_none =  ($active_element.attr("output") == undefined && $active_element.attr("output") == "none";
+        var output_is_none =  $active_element.attr("output") == "none";
+        console.log(output_is_none, msg[1], msg[0], user_name_map[msg[0]], res);
+        if (!output_is_none && $.trim(msg[1]) != "") {
+            res.html(payload);
+            jQuery(window).scrollTop(scroll_position);
+        }
         calculate_block(next_node($active_element));
     }
 };
@@ -332,6 +364,8 @@ plotters["line"] = function(plot) {
         .x(function(d) { return x(d[0]); })
         .y(function(d) { return y(d[1]); }));
 
+    jQuery(window).scrollTop(scroll_position);
+        
 };
 
 plotters["bar"] = function(plot) {
@@ -419,7 +453,8 @@ message_handlers[MSG_OUTPUT_PLOT] = function(msg) {
     plot.h = 275;
     plot.p = 40;
 
-    if (typeof plotter == "function")
+    var output_is_none = $active_element.attr("output") == "none";
+    if (typeof plotter == "function" && !output_is_none)
         plotter(plot);
 };
 
@@ -427,7 +462,7 @@ message_handlers[MSG_OUTPUT_PLOT] = function(msg) {
 function process_inbox() {
     // iterate through the messages
     for (var id in inbox_queue) {
-        console.log("inbox");
+        if (id == 1) console.log("INBOX");
         var msg = inbox_queue[id],
             type = msg[0], msg = msg.slice(1),
             handler = message_handlers[type];
@@ -465,23 +500,27 @@ function callback(data, textStatus, jqXHR) {
     setTimeout(poll, poll_interval);
 }
 
-function calculate_form(index, dom_ele) {
+function prep_form() {
     // Send commands to Julia to turn form elements into Julia variables.
-    if (dom_ele.type == "text") {
-        outbox_queue.push([MSG_INPUT_EVAL, "jlmd_form", user_id_map["jlmd_form"], dom_ele.name + "= \"" + dom_ele.value + "\""]);
-    } else if (dom_ele.type == "radio" && dom_ele.checked) {
-        outbox_queue.push([MSG_INPUT_EVAL, "jlmd_form", user_id_map["jlmd_form"], dom_ele.name + "= \"" + dom_ele.value + "\""]);
-    } else if (dom_ele.type == "checkbox") {
-        outbox_queue.push([MSG_INPUT_EVAL, "jlmd_form", user_id_map["jlmd_form"], dom_ele.value + "= " + ((dom_ele.checked) ? "true" : "false")]);
-    } else if (dom_ele.nodeName.toLowerCase() == "select") {
-        outbox_queue.push([MSG_INPUT_EVAL, "jlmd_form", user_id_map["jlmd_form"], dom_ele.name + "= \"" + dom_ele[dom_ele.selectedIndex].text + "\""]);
-    } 
+    var cmd = "";
+    if (this.type == "text") {
+        cmd += this.name + "= \"" + this.value + "\";";
+    } else if (this.type == "radio" && this.checked) {
+        cmd += this.name + "= \"" + this.value + "\";";
+    } else if (this.type == "checkbox") {
+        cmd += this.value + "= " + ((this.checked) ? "true;" : "false;");
+    } else if (this.nodeName.toLowerCase() == "select") {
+        //cmd += this.name + "= \"" + this[this.selectedIndex].text + "\";"; // gives the text contents
+        cmd += this.name + "= \"" + this[this.selectedIndex].value + "\";"; // gives the value
+    }
+    return cmd;
 }
 
 function calculate_block(dom_ele) {
     if (dom_ele.length == 0) return;
     var code = $(dom_ele).find("pre").text();
     var name = $(dom_ele).find(".juliaresult").attr('id');
+    scroll_position = jQuery(window).scrollTop();
     $(dom_ele).find(".juliaresult").html("");
     outbox_queue.push([MSG_INPUT_EVAL, name, user_id_map[name], code]);
     process_outbox();
@@ -493,12 +532,11 @@ function next_node(node) { // non-recursive
 // Keeps going until it finds a "calculatable" DOM node.
     var starting_node = node;
     // while (node.length > 0) {
-        n = node.children(".juliablock") // try children
-        console.log("NEXT_NODE children", n);
+        n = node.children(".juliablock[run='" + run_mode + "'],[run='all']") // try children
         if (n.length > 0) {
             return n.first();
         } 
-        n = node.nextAll(".juliablock") // try siblings
+        n = node.nextAll(".juliablock[run='" + run_mode + "'],[run='all']") // try siblings
         if (n.length > 0) { 
             return n.first();
         } 
@@ -510,22 +548,30 @@ function next_node(node) { // non-recursive
         // }
     // }
     // TODO make this more robust for different arrangements.
+    run_mode = "normal";  // odd place for this, but I couldn't think of anything better.
     return [];
 }  
 
 function calculate() {  // page calculation
     // set $active_element
-    $active_element = next_node($("#main_markdown"));
+    // $active_element = next_node($("#main_markdown"));
+    // console.log("ACTIVE ELEMENT", $active_element);
     // calculate form elements first
     // TODO what about actively generated form elements?
-    $(":input").each(calculate_form); 
+    var form_cmd = $(":input").map(prep_form).get().join(""); 
+    console.log("ACTIVE ELEMENT", $(":input").map(prep_form));
+    console.log("ACTIVE ELEMENT", $(":input").map(prep_form).get());
+    outbox_queue.push([MSG_INPUT_EVAL, "jlmd_form", user_id_map["jlmd_form"], form_cmd]);
     process_outbox();
     // Now, start calculation with the first block. Calculations chain
     // from there.
-    console.log("ACTIVE EL",$active_element);
-    if ($active_element.length > 0) {
-        calculate_block($active_element);
-    }
+    setTimeout(function() {
+        $active_element = next_node($("#main_markdown"));
+        console.log("ACTIVE ELEMENT", $active_element);
+        if ($active_element.length > 0) {
+            calculate_block($active_element);
+        }
+    }, 300);
 }
 
 return{

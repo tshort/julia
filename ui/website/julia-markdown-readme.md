@@ -2,6 +2,9 @@
 
 Julia Markdown pages are meant to be an easy way to make simple web
 interfaces or workbooks using [Julia](http://www.julialang.org).
+The target audience is someone who knows Julia and wants to make web
+applications probably for use on an intranet.
+
 Markdown is an easy way to make web pages, and Julia already works
 well through the web using the web REPL. Julia code blocks become
 "live" when Julia Markdown pages are served through the Julia
@@ -16,6 +19,11 @@ section will appear below the input. Here's some example Markdown:
     a = randn(12)
     ```
 
+When run, this will look something like this:
+
+<div class="juliablock" run="normal"><pre><code>a = randn(12)
+</code></pre><div class="juliaresult" id="jlmd_res_1x"><div class="juliaplain">12-element&nbsp;Float64&nbsp;Array:<br>&nbsp;-1.58914&nbsp;<br>&nbsp;&nbsp;1.94878&nbsp;<br>&nbsp;-0.703719<br>&nbsp;-0.438469<br>&nbsp;-1.58658&nbsp;<br>&nbsp;&nbsp;0.103443<br>&nbsp;&nbsp;0.776354<br>&nbsp;-0.249174<br>&nbsp;-0.895945<br>&nbsp;&nbsp;2.1338&nbsp;&nbsp;<br>&nbsp;-0.515881<br>&nbsp;&nbsp;1.65567&nbsp;</div></div></div>
+
 Here is that code block; it can be evaluated when run
 from the Julia webserver.
 
@@ -25,7 +33,8 @@ a = randn(12)
 
 In the Julia block header, you can also specify the result type as
 `markdown` for Markdown output (also useful for HTML, since Markdown
-files can contain HTML). Here is an example:
+files can contain HTML). `output` can also be `"none"` to suppress
+output. Here is an example for Markdown output:
 
     ```julia  output=markdown
     println("## This is a second-level heading")
@@ -39,7 +48,7 @@ files can contain HTML). Here is an example:
 This will produce something like:
 
 ## This is a second-level heading
-This is a normal paragraph with a word *emphasized*.
+testhis is a normal paragraph with a word *emphasized*.
 
 * bullet 1
   * bullet 1a
@@ -78,6 +87,10 @@ linked from julia/ui/website/).
   [live local link](http://localhost:2000/jlmd.htm?example1.md),
   [normal link](example1.md)
 
+* example2.md --
+  [live local link](http://localhost:2000/jlmd.htm?example2.md),
+  [normal link](example2.md)
+
 
 ## Inspiration / Ideas
 
@@ -111,31 +124,18 @@ like the web REPL. One difference is that results from Julia need to
 be plugged into appropriate places in the HTML file. That's done by
 making a separate user\_name (and user\_id) for each Julia code block.
 That way, when the appropriate evaluated results are returned from the
-server, the results are plugged into the right spot.
+server, the results are plugged into the right spot. Each webpage has
+it's own session. 
 
 ## Current status
 
-Currently, things are a bit rough, but pages calculate okay. The web
-page collects three main types of output from the webserver:
+Currently, things are a bit rough, but pages calculate pretty well.
+The web page collects three main types of output from the webserver:
 `MSG_OUTPUT_OTHER`, `MSG_OUTPUT_EVAL_RESULT`, and `MSG_OUTPUT_PLOT`.
 Of these, only `MSG_OUTPUT_EVAL_RESULT` has an indicator of the
 calling location. For the others, the active location is tracked. It
-mostly seems to work, but it might be fragile.
+mostly seems to work but seems a bit kludgy. Because each webpage has
+its own session, the startup time is a bit slow waiting for the Julia
+process to load. It would be faster if the Julia web server always had
+a spare process ready to hand off to the next session request.
 
-## To-Do list
-
-Lots of things could be done. Here's a list of short-term items:
-
-* Get a new session for each web page. (It's nice the way it is for
-  debugging--you can use a web REPL to watch what the web page is
-  doing.)
-
-* Add options for Julia blocks to hide the input and/or the output.
-  Maybe use global options for these.
-
-* Add an option for a Julia block to do calculations on page load,
-  normal calculation, or all (page load and normal).
-
-* Find a place to output errors from the server.
-
-* Spruce up the CSS.

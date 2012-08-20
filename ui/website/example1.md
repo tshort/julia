@@ -52,13 +52,15 @@ println("* bullet 2")
 You can also enter form inputs using a Markdown
 [extension](https://github.com/brikis98/wmd). Here are some examples
 of form elements:
-
+****
 ```
 name = ___
 sex = (x) male () female
 phones = [] Android [x] iPhone [x] Blackberry
 city = {BOS, SFO, (NYC)}
 ```
+****
+
 Here are the form elements that result from the Markdown above.
 
 name = ___
