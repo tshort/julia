@@ -86,8 +86,7 @@ julia/ui/website/).
 
 * jlmd_example3.md --
   [live local link](http://localhost:2000/jlmd.htm?jlmd_example3.md), [raw](https://raw.github.com/tshort/julia/jlmd/ui/website/jlmd_example3.md)
-  [github link](https://github.com/tshort/julia/blob/jlmd/ui/website/jlmd_example3.md)(may
-  -- More form jlmd_examples. 
+  -- More form examples. 
 
 * jlmd_example4.md --
   [live local link](http://localhost:2000/jlmd.htm?jlmd_example4.md), [raw](https://raw.github.com/tshort/julia/jlmd/ui/website/jlmd_example4.md)
