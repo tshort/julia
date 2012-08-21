@@ -77,24 +77,21 @@ julia/ui/website/).
 ## Examples
 
 * jlmd_example1.md --
-  [live local link](http://localhost:2000/jlmd.htm?jlmd_example1.md), [raw](https://raw.github.com/tshort/julia/jlmd/ui/website/jlmd_example1.md),
-  [github link](https://github.com/tshort/julia/blob/jlmd/ui/website/jlmd_example1.md)
+  [live local link](http://localhost:2000/jlmd.htm?jlmd_example1.md), [raw](https://raw.github.com/tshort/julia/jlmd/ui/website/jlmd_example1.md)
   -- Broad overview.
 
 * jlmd_example2.md --
-  [live local link](http://localhost:2000/jlmd.htm?jlmd_example2.md), [raw](https://raw.github.com/tshort/julia/jlmd/ui/website/jlmd_example2.md),
-  [github link](https://github.com/tshort/julia/blob/jlmd/ui/website/jlmd_example2.md)(may
-  be jumbled some on Github) -- Example function calculator. 
+  [live local link](http://localhost:2000/jlmd.htm?jlmd_example2.md), [raw](https://raw.github.com/tshort/julia/jlmd/ui/website/jlmd_example2.md)
+  -- Example function calculator. 
 
 * jlmd_example3.md --
-  [live local link](http://localhost:2000/jlmd.htm?jlmd_example3.md), [raw](https://raw.github.com/tshort/julia/jlmd/ui/website/jlmd_example3.md),
+  [live local link](http://localhost:2000/jlmd.htm?jlmd_example3.md), [raw](https://raw.github.com/tshort/julia/jlmd/ui/website/jlmd_example3.md)
   [github link](https://github.com/tshort/julia/blob/jlmd/ui/website/jlmd_example3.md)(may
-  be jumbled some on Github) -- More form jlmd_examples. 
+  -- More form jlmd_examples. 
 
 * jlmd_example4.md --
-  [live local link](http://localhost:2000/jlmd.htm?jlmd_example4.md), [raw](https://raw.github.com/tshort/julia/jlmd/ui/website/jlmd_example4.md),
-  [github link](https://github.com/tshort/julia/blob/jlmd/ui/website/jlmd_example4.md)(may
-  be jumbled some on Github) -- Interesting output from Julia.
+  [live local link](http://localhost:2000/jlmd.htm?jlmd_example4.md), [raw](https://raw.github.com/tshort/julia/jlmd/ui/website/jlmd_example4.md)
+  -- Interesting output from Julia.
 
 
 ## Inspiration / Ideas
