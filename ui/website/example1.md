@@ -8,7 +8,6 @@ section will appear below the input. Here's some example Markdown:
 
     ```julia
     a = randn(12)
-    dump(a)
     ```
 Here's the result in the page:
 
@@ -22,17 +21,18 @@ Here's another entry:
 b = 99.99 * a[1]
 ```
 
+And another:
+
 ```julia
 {:a => [1:30], :b => randn(9), "c" => ["a", "b"]}
 ```
-Here's a plot (feature not implemented):
+Here's a plot (used D3 like the web REPL):
 
 ```julia
 plot(cos, 0, 10)
 ```
 
-Here's an example of Markdown output from Julia (this feature is not
-implemented, so this will be printed verbatim):
+Here's an example of Markdown output from Julia:
 
 
 ```julia  output=markdown

@@ -235,16 +235,18 @@ var _CreateFormTextInput = function (text) {
 	// * Requires exactly 3 underscores on the right-hand side of the equals sign.
 	// * Currently does not check whether a <form> tag has been opened.
 	// 
-	return text.replace(/(\w[\w \t\-]*(\*)?)[ \t]*=[ \t]*___(\[\d+\])?/g, function(wholeMatch, lhs, required, size) {
+	return text.replace(/(\w[\w \t\-]*(\*)?)[ \t]*=[ \t]*___(\(.*\))?(\[\d+\])?/g, function(wholeMatch, lhs, required, value, size) {
+        console.log(value);
 		var cleaned = lhs.replace(/\*/g, '').trim().replace(/\t/g, ' ').toLowerCase();
 		var inputName = cleaned.replace(/[ \t]/g, '-'); // convert spaces to hyphens
 		var labelName = cleaned.split(' ').map(capitalize).join(' ') + (required ? '*:' : ':');
+		value = value ? value.replace(/\(/, "").replace(/\)/, "") : "";
 		var template = '<label for="%id%" class="%labelClass%">%label%</label>' +
-					   '<input type="text" id="%id%" name="%id%" size="%size%" class="%inputClass%"/>';
+					   '<input type="text" id="%id%" name="%id%" size="%size%" class="%inputClass%" value="%value%"/>';
 		size = size ? size.match(/\d+/g)[0] : 20;
 		var labelClass = required ? 'required-label' : '';
 		var inputClass = required ? 'required-input' : '';
-		return _Templater.format(template, {id: inputName, label: labelName, size: size, labelClass: labelClass, inputClass: inputClass});
+		return _Templater.format(template, {id: inputName, label: labelName, size: size, labelClass: labelClass, inputClass: inputClass, value: value});
 	});
 };
 

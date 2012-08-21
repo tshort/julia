@@ -1,3 +1,5 @@
+<link href="https://raw.github.com/tshort/julia/jlmd/ui/website/jlmd.css" rel="stylesheet" type="text/css" />
+
 # Julia Markdown pages (Julia MD or JLMD)
 
 Julia Markdown pages are meant to be an easy way to make simple web
@@ -15,61 +17,41 @@ Here is an example of a Julia code input section. When the page is
 calculated (hit the `calculate` button), the output of each Julia
 section will appear below the input. Here's some example Markdown:
 
+***
+
+    ## Simple function plotter
+    
+    alpha = ___(3.0) 
+    
+    [[[Calculate]]]
+    
+    ```julia output=markdown 
+    println("## Results")
+    ```
+    
     ```julia
-    a = randn(12)
+    f(x, k) = 20*sin(k * x) ./ x
+    x = linspace(-5.,5,500)
+    plot(x, f(x, float(alpha)))
     ```
 
-When run, this will look something like this:
+***
 
-<div class="juliablock" run="normal"><pre><code>a = randn(12)
-</code></pre><div class="juliaresult" id="jlmd_res_1x"><div class="juliaplain">12-element&nbsp;Float64&nbsp;Array:<br>&nbsp;-1.58914&nbsp;<br>&nbsp;&nbsp;1.94878&nbsp;<br>&nbsp;-0.703719<br>&nbsp;-0.438469<br>&nbsp;-1.58658&nbsp;<br>&nbsp;&nbsp;0.103443<br>&nbsp;&nbsp;0.776354<br>&nbsp;-0.249174<br>&nbsp;-0.895945<br>&nbsp;&nbsp;2.1338&nbsp;&nbsp;<br>&nbsp;-0.515881<br>&nbsp;&nbsp;1.65567&nbsp;</div></div></div>
+When run, this will look like this:
 
-Here is that code block; it can be evaluated when run
-from the Julia webserver.
+![jlmd screen capture](jlmd_screenshot.png)
 
-```julia
-a = randn(12)
-```
-
-In the Julia block header, you can also specify the result type as
+In the Julia block header, you can specify the result type as
 `markdown` for Markdown output (also useful for HTML, since Markdown
 files can contain HTML). `output` can also be `"none"` to suppress
-output. Here is an example for Markdown output:
+output. 
 
-    ```julia  output=markdown
-    println("## This is a second-level heading")
-    println("This is a normal paragraph with a word *emphasized*.")
-    println()
-    println("* bullet 1")
-    println("  * bullet 1a")
-    println("* bullet 2")
-    ```
-
-This will produce something like:
-
-## This is a second-level heading
-testhis is a normal paragraph with a word *emphasized*.
-
-* bullet 1
-  * bullet 1a
-* bullet 2
-
-This code block is not included here for live use. (It will look funny
-on github because the output=markdown part messes things up.)
-
-Since this readme file is Markdown, this file can be used as a Julia
-MD page. Here is a form element (entered as `name` = `___`):
-
-name = ___
-
-```julia
-name
-```
+In the example above, a text entry box is specified with `alpha` =
+`___(3.0)`. In Julia, `alpha` is assigned to the value entered in the
+text box (a string). The default value is "3.0".
 
 You add a `calculate` button to a Markdown file by inserting
 [[[`Calculate`]]].
-
-[[[Calculate]]]
 
 The URL to read a Julia MD file is as follows:
 
@@ -84,12 +66,13 @@ linked from julia/ui/website/).
 ## Examples
 
 * example1.md --
-  [live local link](http://localhost:2000/jlmd.htm?example1.md),
-  [normal link](example1.md)
+  [live local link](http://localhost:2000/jlmd.htm?example1.md), [raw](https://raw.github.com/tshort/julia/jlmd/ui/website/example1.md),
+  [github link](https://github.com/tshort/julia/blob/jlmd/ui/website/example1.md)
 
 * example2.md --
-  [live local link](http://localhost:2000/jlmd.htm?example2.md),
-  [normal link](example2.md)
+  [live local link](http://localhost:2000/jlmd.htm?example2.md), [raw](https://raw.github.com/tshort/julia/jlmd/ui/website/example2.md),
+  [github link](https://github.com/tshort/julia/blob/jlmd/ui/website/example2.md)(may
+  be jumbled some on Github)
 
 
 ## Inspiration / Ideas
