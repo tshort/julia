@@ -39,7 +39,7 @@ section will appear below the input. Here's some example Markdown:
 
 When run, this will look like this:
 
-![jlmd screen capture](jlmd_screenshot.png)
+![jlmd screen capture](https://raw.github.com/tshort/julia/jlmd/ui/website/jlmd_screenshot.png)
 
 In the Julia block header, you can specify the result type as
 `markdown` for Markdown output (also useful for HTML, since Markdown
