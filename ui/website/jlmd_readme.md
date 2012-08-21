@@ -1,4 +1,3 @@
-<link href="https://raw.github.com/tshort/julia/jlmd/ui/website/jlmd.css" rel="stylesheet" type="text/css" />
 
 # Julia Markdown pages (Julia MD or JLMD)
 
@@ -17,8 +16,6 @@ Here is an example of a Julia code input section. When the page is
 calculated (hit the `calculate` button), the output of each Julia
 section will appear below the input. Here's some example Markdown:
 
-***
-
     ## Simple function plotter
     
     alpha = ___(3.0) 
@@ -35,9 +32,7 @@ section will appear below the input. Here's some example Markdown:
     plot(x, f(x, float(alpha)))
     ```
 
-***
-
-When run, this will look like this:
+When run, this will look like this in a browser:
 
 ![jlmd screen capture](https://raw.github.com/tshort/julia/jlmd/ui/website/jlmd_screenshot.png)
 
@@ -53,26 +48,53 @@ text box (a string). The default value is "3.0".
 You add a `calculate` button to a Markdown file by inserting
 [[[`Calculate`]]].
 
-The URL to read a Julia MD file is as follows:
+
+## Installing / Using
+
+All files live in `julia_dir/usr/lib/julia/website/` where `julia_dir`
+is the directory where Julia is installed. These files may be linked
+to `julia_dir/ui/website/`. To install, either clone this version of
+Julia, or copy `jlmd*.*` from
+[this fork](https://github.com/tshort/julia/tree/jlmd/ui/website/).
+The following files are mandatory:
+
+* https://github.com/tshort/julia/blob/jlmd/ui/website/jlmd.js
+* https://github.com/tshort/julia/blob/jlmd/ui/website/jlmd.html
+* https://github.com/tshort/julia/blob/jlmd/ui/website/jlmd.css
+* https://github.com/tshort/julia/blob/jlmd/ui/website/jlmd_showdown.js
+
+Then, start the Julia webserver. To load a Julia MD file use a URL
+like the following:
 
     http://localhost:2000/jlmd.htm?jlmd-filename.md
 
-Adjust the `jlmd-filename.md` part for different files. These files
-must all be in the julia/usr/lib/julia/website/ directory (possibly
-linked from julia/ui/website/).
-
+Adjust the `jlmd-filename.md` part for different files (they don't
+have to have "jlmd" in the filename). These files must all be in the
+julia/usr/lib/julia/website/ directory (possibly linked from
+julia/ui/website/).
 
 
 ## Examples
 
-* example1.md --
-  [live local link](http://localhost:2000/jlmd.htm?example1.md), [raw](https://raw.github.com/tshort/julia/jlmd/ui/website/example1.md),
-  [github link](https://github.com/tshort/julia/blob/jlmd/ui/website/example1.md)
+* jlmd_example1.md --
+  [live local link](http://localhost:2000/jlmd.htm?jlmd_example1.md), [raw](https://raw.github.com/tshort/julia/jlmd/ui/website/jlmd_example1.md),
+  [github link](https://github.com/tshort/julia/blob/jlmd/ui/website/jlmd_example1.md)
+  -- Broad overview.
 
-* example2.md --
-  [live local link](http://localhost:2000/jlmd.htm?example2.md), [raw](https://raw.github.com/tshort/julia/jlmd/ui/website/example2.md),
-  [github link](https://github.com/tshort/julia/blob/jlmd/ui/website/example2.md)(may
-  be jumbled some on Github)
+* jlmd_example2.md --
+  [live local link](http://localhost:2000/jlmd.htm?jlmd_example2.md), [raw](https://raw.github.com/tshort/julia/jlmd/ui/website/jlmd_example2.md),
+  [github link](https://github.com/tshort/julia/blob/jlmd/ui/website/jlmd_example2.md)(may
+  be jumbled some on Github) -- Example function calculator. 
+
+* jlmd_example3.md --
+  [live local link](http://localhost:2000/jlmd.htm?jlmd_example3.md), [raw](https://raw.github.com/tshort/julia/jlmd/ui/website/jlmd_example3.md),
+  [github link](https://github.com/tshort/julia/blob/jlmd/ui/website/jlmd_example3.md)(may
+  be jumbled some on Github) -- More form jlmd_examples. 
+
+* jlmd_example4.md --
+  [live local link](http://localhost:2000/jlmd.htm?jlmd_example4.md), [raw](https://raw.github.com/tshort/julia/jlmd/ui/website/jlmd_example4.md),
+  [github link](https://github.com/tshort/julia/blob/jlmd/ui/website/jlmd_example4.md)(may
+  be jumbled some on Github) -- Interesting output from Julia.
 
 
 ## Inspiration / Ideas
@@ -121,4 +143,14 @@ mostly seems to work but seems a bit kludgy. Because each webpage has
 its own session, the startup time is a bit slow waiting for the Julia
 process to load. It would be faster if the Julia web server always had
 a spare process ready to hand off to the next session request.
+
+## Future
+
+I'm really waiting for the Julia compiler to arrive. If we have that, I
+think we can use
+[Emscripten](https://github.com/kripken/emscripten/wiki) or possibly
+[PNaCl](http://www.chromium.org/nativeclient/pnacl/building-and-testing-portable-native-client)
+to compile Julia Markdown pages to HTML and Javascript. Then, Julia
+Markdown pages could be served from static locations like Github. 
+
 

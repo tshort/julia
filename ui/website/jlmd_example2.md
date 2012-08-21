@@ -8,6 +8,7 @@ div.juliablock pre {visibility:hidden;height:0px}
 This example demonstrates the following:
 
 * Hiding code blocks
+* Running a Julia code block on page load
 * Making Julia results blend in with the page
 * Dynamically creating a form element with Julia
 
@@ -19,6 +20,8 @@ calculation, g2 will be plotted against g1.
     f2(x) = 20*sin(3x) ./ x
     f3(x) = (1 - 4x - x.^3.0/17) .* sin(x.^2.)
 
+The following block is run upon page load (`run=init`), and the form
+is specified using Markdown syntax. 
 
 ```julia output=markdown run=init
 f1(x) = sin(1./x)

@@ -10,8 +10,11 @@ $(document).ready(function() {
         success: function (response) {
             var converter = new Showdown.converter();
             $('#main_markdown').html(converter.makeHtml(response)); 
-            $("#jlmd_error_div").html("<span class='color-scheme-message'>&lt;initializing&gt;</span>");
+            $("#jlmd_error_div").html("<span class='color-scheme-message'>Initializing, please wait...</span>");
             setTimeout(init_session, 300);
+        },
+        error: function (response) {
+            $("#jlmd_error_div").html("<span class='color-scheme-message'>Error reading file.</span>");
         }
     });
     $("body, input, textarea").keydown(function(e){    // F9 to calculate the page.
@@ -504,14 +507,16 @@ function prep_form() {
     // Send commands to Julia to turn form elements into Julia variables.
     var cmd = "";
     if (this.type == "text") {
-        cmd += this.name + "= \"" + this.value + "\";";
+        cmd += this.name + "= \"" + this.value.replace(/"/g,"\\\"")  + "\";";
     } else if (this.type == "radio" && this.checked) {
-        cmd += this.name + "= \"" + this.value + "\";";
+        cmd += this.name + "= \"" + this.value.replace(/"/g,"\\\"") + "\";";
     } else if (this.type == "checkbox") {
         cmd += this.value + "= " + ((this.checked) ? "true;" : "false;");
     } else if (this.nodeName.toLowerCase() == "select") {
         //cmd += this.name + "= \"" + this[this.selectedIndex].text + "\";"; // gives the text contents
-        cmd += this.name + "= \"" + this[this.selectedIndex].value + "\";"; // gives the value
+        cmd += this.name + "= \"" + this[this.selectedIndex].value.replace(/"/g,"\\\"") + "\";"; // gives the value
+    } else if (this.nodeName.toLowerCase() == "textarea") {
+        cmd += this.name + "= \"" + this.value.replace(/"/g,"\\\"") + "\";"; 
     }
     return cmd;
 }

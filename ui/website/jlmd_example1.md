@@ -54,7 +54,7 @@ You can also enter form inputs using a Markdown
 of form elements:
 ****
 ```
-name = ___
+name = ___(Tom)
 sex = (x) male () female
 phones = [] Android [x] iPhone [x] Blackberry
 city = {BOS, SFO, (NYC)}
@@ -63,7 +63,7 @@ city = {BOS, SFO, (NYC)}
 
 Here are the form elements that result from the Markdown above.
 
-name = ___
+name = ___(Tom)
 
 sex = (x) male () female
 
@@ -71,14 +71,13 @@ phones = [] Android [x] iPhone [x] Blackberry
 
 city = {BOS, SFO, (NYC)}
 
-Each of the form labels above (`name`, `sex`, `phones`
-[this might be a little different], and `city`) can be used as Julia
+Each of the form labels above (`name`, `sex`, and `city`) can be used as Julia
 variables. Here is a simple example:
 
 ```julia 
 println("name = ", name)
 println("sex = ", sex)
-#println("phones = ", phones)
+println("android = ", android)
 println("city = ", city)
 ```
 

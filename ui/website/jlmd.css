@@ -129,6 +129,7 @@ span.color-scheme-message {
 }
 
 span.color-scheme-error {
+  color: red;
 }
 
 
