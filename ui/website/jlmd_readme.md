@@ -13,8 +13,9 @@ webserver. Form elements entered using a Markdown extension for forms
 are also converted to Julia variables.
 
 Here is an example of a Julia code input section. When the page is
-calculated (hit the `calculate` button), the output of each Julia
-section will appear below the input. Here's some example Markdown:
+calculated (hitting the `calculate` button or the F9 key), the output
+of each Julia section will appear below the input. Here's some example
+Markdown:
 
     ## Simple function plotter
     
@@ -32,7 +33,7 @@ section will appear below the input. Here's some example Markdown:
     plot(x, f(x, float(alpha)))
     ```
 
-When run, this will look like this in a browser:
+When run, it will look like this in a browser:
 
 ![jlmd screen capture](https://raw.github.com/tshort/julia/jlmd/ui/website/jlmd_screenshot.png)
 
@@ -53,9 +54,10 @@ You add a `calculate` button to a Markdown file by inserting
 
 All files live in `julia_dir/usr/lib/julia/website/` where `julia_dir`
 is the directory where Julia is installed. These files may be linked
-to `julia_dir/ui/website/`. To install, either clone this version of
-Julia, or copy `jlmd*.*` from
-[this fork](https://github.com/tshort/julia/tree/jlmd/ui/website/).
+to `julia_dir/ui/website/`. To install, either pull from
+[this fork](https://github.com/tshort/julia/tree/jlmd/ui/website/) of
+Julia, or copy `jlmd*.*` from there.
+
 The following files are mandatory:
 
 * https://github.com/tshort/julia/blob/jlmd/ui/website/jlmd.js
