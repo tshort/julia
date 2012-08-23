@@ -142,6 +142,16 @@ its own session, the startup time is a bit slow waiting for the Julia
 process to load. It would be faster if the Julia web server always had
 a spare process ready to hand off to the next session request.
 
+## Issues
+
+* If JLMD connections are made from more than one tab in a browser,
+  things will get messed up. The web REPL has the same problem. Both
+  are from the use of cookies to manage sessions. See Julia
+  [issue #1197](https://github.com/JuliaLang/julia/issues/1197).
+
+* It doesn't seem to work in the Windows port of Julia
+  [17f50ea4e0](https://github.com/downloads/JuliaLang/julia/julia-17f50ea4e0-WINNT-i686.tar.gz).
+
 ## Future
 
 I'm really waiting for the Julia compiler to arrive. If we have that, I
