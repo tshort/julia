@@ -1,3 +1,11 @@
+# Note
+
+These files are now in their own repository:
+
+https://github.com/tshort/JuliaMarkdown
+
+
+
 
 # Julia Markdown pages (Julia MD or JLMD)
 
