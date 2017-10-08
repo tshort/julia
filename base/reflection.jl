@@ -760,15 +760,17 @@ struct CodegenParams
     module_setup::Any
     module_activation::Any
     raise_exception::Any
+    after_inference::Any
 
     CodegenParams(;cached::Bool=true,
                    track_allocations::Bool=true, code_coverage::Bool=true,
                    static_alloc::Bool=true, prefer_specsig::Bool=false,
-                   module_setup=nothing, module_activation=nothing, raise_exception=nothing) =
+                   module_setup=nothing, module_activation=nothing, 
+		   raise_exception=nothing, after_inference=nothing) =
         new(Cint(cached),
             Cint(track_allocations), Cint(code_coverage),
             Cint(static_alloc), Cint(prefer_specsig),
-            module_setup, module_activation, raise_exception)
+            module_setup, module_activation, raise_exception, after_inference)
 end
 
 # Printing code representations in IR and assembly

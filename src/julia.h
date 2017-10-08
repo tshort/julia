@@ -1830,6 +1830,12 @@ typedef struct {
     // parameters: LLVMBasicBlockRef as Ptr{Void}, LLVMValueRef as Ptr{Void}
     // return value: none
     jl_value_t *raise_exception;
+
+    // after inference: inspect / change AST after type inference
+    // parameters: ?? as ??
+    // return value: none
+    jl_value_t *after_inference;
+
 } jl_cgparams_t;
 extern JL_DLLEXPORT jl_cgparams_t jl_default_cgparams;
 

@@ -1134,6 +1134,19 @@ jl_llvm_functions_t jl_compile_linfo(jl_method_instance_t **pli, jl_code_info_t 
         }
         assert(jl_is_code_info(src));
 
+        // if (JL_HOOK_TEST(params, module_activation)) {
+        //     JL_HOOK_CALL(params, module_activation, 1, jl_box_voidpointer(wrap(m.release())));
+        if (JL_HOOK_TEST(params, after_inference)) {
+            // JL_HOOK_CALL(params, after_inference, 1, (jl_array_t*)src);
+            // _hook_call<1>((params)->after_inference, {(jl_array_t*)src});
+            jl_value_t **argv;
+            JL_GC_PUSHARGS(argv, 2);
+            argv[0] = params->after_inference;
+            argv[1] = (jl_value_t*)src;
+            jl_apply(argv, 2);
+            JL_GC_POP();
+        }
+
         // Step 2: setup global state
         bool last_n_c = nested_compile;
         if (!nested_compile && dump_compiles_stream != NULL)
