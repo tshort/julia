@@ -1812,6 +1812,7 @@ typedef struct {
     int code_coverage;      // can we measure coverage?
     int static_alloc;       // is the compiler allowed to allocate statically?
     int prefer_specsig;     // are specialized function signatures preferred?
+    int imaging_mode;       // are we writing to a file / otherwise exporting code
 
 
     // hooks

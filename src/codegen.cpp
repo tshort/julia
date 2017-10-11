@@ -1489,7 +1489,8 @@ void *jl_get_llvmf_defn(jl_method_instance_t *linfo, size_t world, bool getwrapp
         // not a generic function
         return NULL;
     }
-
+    bool imaging_mode_orig = imaging_mode;
+    imaging_mode = params.imaging_mode;
     jl_code_info_t *src = (jl_code_info_t*)linfo->inferred;
     JL_GC_PUSH1(&src);
     if (!src || (jl_value_t*)src == jl_nothing) {
@@ -1555,6 +1556,7 @@ void *jl_get_llvmf_defn(jl_method_instance_t *linfo, size_t world, bool getwrapp
     m.release(); // the return object `llvmf` will be the owning pointer
     JL_UNLOCK(&codegen_lock); // Might GC
     JL_GC_POP();
+    imaging_mode = imaging_mode_orig;
     if (getwrapper || !specf)
         return f;
     else
@@ -1570,6 +1572,9 @@ void *jl_get_llvmf_decl(jl_method_instance_t *linfo, size_t world, bool getwrapp
         // not a generic function
         return NULL;
     }
+
+    bool imaging_mode_orig = imaging_mode;
+    imaging_mode = params.imaging_mode;
 
     // compile this normally
     jl_llvm_functions_t decls = jl_compile_for_dispatch(&linfo, world);
@@ -1594,10 +1599,12 @@ void *jl_get_llvmf_decl(jl_method_instance_t *linfo, size_t world, bool getwrapp
     if (getwrapper || !decls.specFunctionObject) {
         auto f = Function::Create(jl_func_sig, GlobalVariable::ExternalLinkage, decls.functionObject);
         f->addFnAttr("thunk");
+        imaging_mode = imaging_mode_orig;
         return f;
     }
     else {
         jl_returninfo_t returninfo = get_specsig_function(NULL, decls.specFunctionObject, linfo->specTypes, linfo->rettype);
+        imaging_mode = imaging_mode_orig;
         return returninfo.decl;
     }
 }
