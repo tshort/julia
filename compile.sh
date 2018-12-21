@@ -1,6 +1,6 @@
 
 EMCC_DEBUG=2 emcc -Isrc/support \
--L/home/tshort/builders/LLVMBuilder/products/lib \
+-Lproducts/lib \
 -lLLVMAnalysis -lLLVMAsmParser -lLLVMAsmPrinter -lLLVMBinaryFormat -lLLVMBitReader \
 -lLLVMBitWriter -lLLVMCodeGen -lLLVMCore -lLLVMCoroutines -lLLVMCoverage \
 -lLLVMDebugInfoCodeView -lLLVMDebugInfoDWARF -lLLVMDebugInfoMSF -lLLVMDebugInfoPDB \
