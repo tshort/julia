@@ -9,6 +9,7 @@
   . method specialization and caching, invoking type inference
 */
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 #include "julia.h"
 #include "julia_internal.h"
@@ -2059,8 +2060,11 @@ static jl_value_t *verify_type(jl_value_t *v) JL_NOTSAFEPOINT
 
 STATIC_INLINE int sig_match_fast(jl_value_t **args, jl_value_t **sig, size_t i, size_t n)
 {
+    jl_printf(JL_STDERR, "hello \n");
     // NOTE: This function is a huge performance hot spot!!
     for (; i < n; i++) {
+        jl_printf(JL_STDERR, "%zu\n", i);
+        ios_flush(JL_STDERR);
         jl_value_t *decl = sig[i];
         jl_value_t *a = args[i];
         if ((jl_value_t*)jl_typeof(a) != decl) {
@@ -2191,7 +2195,7 @@ JL_DLLEXPORT jl_value_t *jl_apply_generic(jl_value_t **args, uint32_t nargs)
 {
     jl_method_instance_t *mfunc = jl_lookup_generic_(args, nargs,
 #ifdef _OS_WASM_
-                                                     0,
+                                                     1000000,
 #else
                                                      jl_int32hash_fast(jl_return_address()),
 #endif

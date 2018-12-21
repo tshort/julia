@@ -10,11 +10,11 @@
 #include <map>
 #include <algorithm>
 
-#ifndef _OS_WASM_
+// #ifndef _OS_WASM_
 #include "llvm-version.h"
 #include <llvm/ADT/StringRef.h>
 #include <llvm/Support/MathExtras.h>
-#endif
+// #endif
 
 #include "julia_assert.h"
 

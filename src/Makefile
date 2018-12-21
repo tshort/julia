@@ -52,7 +52,7 @@ SRCS := \
 ifneq ($(OS),wasm)
 SRCS += jl_uv threadgroup processor
 else
-SRCS += jl_wasm
+SRCS += jl_wasm processor
 endif
 
 ifeq ($(USEMSVC), 1)
@@ -62,7 +62,7 @@ endif
 LLVMLINK :=
 
 ifeq ($(JULIACODEGEN),LLVM)
-SRCS += codegen jitlayers disasm debuginfo llvm-simdloop llvm-ptls llvm-muladd \
+SRCS += codegen jitlayers disasm llvm-simdloop llvm-ptls llvm-muladd \
 	llvm-late-gc-lowering llvm-lower-handlers llvm-gc-invariant-verifier \
 	llvm-propagate-addrspaces llvm-multiversioning llvm-alloc-opt cgmemmgr \
 	llvm-api

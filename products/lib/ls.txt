@@ -1,0 +1,13 @@
+-lLLVMAnalysis -lLLVMAsmParser -lLLVMAsmPrinter -lLLVMBinaryFormat -lLLVMBitReader
+-lLLVMBitWriter -lLLVMCodeGen -lLLVMCore -lLLVMCoroutines -lLLVMCoverage
+-lLLVMDebugInfoCodeView -lLLVMDebugInfoDWARF -lLLVMDebugInfoMSF -lLLVMDebugInfoPDB
+-lLLVMDemangle -lLLVMDlltoolDriver -lLLVMExecutionEngine -lLLVMFuzzMutate
+-lLLVMGlobalISel -lLLVMIRReader -lLLVMInstCombine -lLLVMInstrumentation
+-lLLVMInterpreter -lLLVMLTO -lLLVMLibDriver -lLLVMLineEditor -lLLVMLinker
+-lLLVMMC -lLLVMMCDisassembler -lLLVMMCJIT -lLLVMMCParser -lLLVMMIRParser
+-lLLVMObjCARCOpts -lLLVMObject -lLLVMObjectYAML -lLLVMOption -lLLVMOrcJIT
+-lLLVMPasses -lLLVMProfileData -lLLVMRuntimeDyld -lLLVMScalarOpts -lLLVMSelectionDAG
+-lLLVMSupport -lLLVMSymbolize -lLLVMTableGen -lLLVMTarget -lLLVMTransformUtils
+-lLLVMVectorize -lLLVMWebAssemblyAsmPrinter -lLLVMWebAssemblyCodeGen
+-lLLVMWebAssemblyDesc -lLLVMWebAssemblyDisassembler -lLLVMWebAssemblyInfo
+-lLLVMWindowsManifest -lLLVMXRay -lLLVMipo
