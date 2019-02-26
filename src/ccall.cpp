@@ -41,8 +41,6 @@ lazyModule(Func &&func)
         std::forward<Func>(func));
 }
 
-bool standalone_aot_mode = false;
-
 extern "C" JL_DLLEXPORT void jl_set_standalone_aot_mode(void)
 {
     standalone_aot_mode = true;
@@ -829,11 +827,9 @@ static jl_cgval_t emit_cglobal(jl_codectx_t &ctx, jl_value_t **args, size_t narg
     interpret_symbol_arg(ctx, sym, args[1], "cglobal", false);
 
     if (standalone_aot_mode) {
-        jl_printf(JL_STDERR,"\n\ncglobal: entering cglobal: do something here\n\n\n");
-        // res = ctx.builder.CreateLoad(to)
+        res = jl_Module->getOrInsertGlobal(sym.f_name, lrt);
     }
-
-    if (sym.jl_ptr != NULL) {
+    else if (sym.jl_ptr != NULL) {
         res = ctx.builder.CreateBitCast(sym.jl_ptr, lrt);
     }
     else if (sym.fptr != NULL) {
@@ -2031,7 +2027,7 @@ jl_cgval_t function_sig_t::emit_a_ccall(
     else if (standalone_aot_mode) {
         assert(symarg.f_name != NULL);
         llvmf = jl_Module->getOrInsertFunction(symarg.f_name, functype);
-        cast<Function>(llvmf)->setLinkage(Function::ExternalLinkage);    // TODO: fixme
+        cast<Function>(llvmf)->setLinkage(Function::ExternalLinkage);
     }
     else if (symarg.jl_ptr != NULL) {
         null_pointer_check(ctx, symarg.jl_ptr);
