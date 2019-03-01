@@ -173,6 +173,22 @@ static void emit_offset_table(Module &mod, const std::vector<GlobalValue*> &vars
                        name);
 }
 
+// This doesn't do much
+extern "C" JL_DLLEXPORT
+void jl_emit_globals_table(void *native_code) {
+    jl_native_code_desc_t *data = (jl_native_code_desc_t*)native_code;
+    LLVMContext &Context = data->M->getContext();
+    Type *T_size;
+    if (sizeof(size_t) == 8)
+        T_size = Type::getInt64Ty(Context);
+    else
+        T_size = Type::getInt32Ty(Context);
+    Type *T_psize = T_size->getPointerTo();
+
+    // add metadata information
+    emit_offset_table(*data->M, data->jl_sysimg_gvars, "jl_sysimg_gvars", T_psize);
+}
+
 static bool is_safe_char(unsigned char c)
 {
     return ('0' <= c && c <= '9') ||
@@ -283,6 +299,7 @@ void *jl_create_native(jl_array_t *methods, const jl_cgparams_t cgparams)
     // process the globals array, before jl_merge_module destroys them
     std::vector<std::string> gvars;
     for (auto &global : params.globals) {
+        jl_printf(JL_STDERR," jcn global, %s\n", global.second->getName());
         gvars.push_back(global.second->getName());
         data->jl_value_to_llvm[global.first] = gvars.size();
     }
@@ -321,8 +338,10 @@ void *jl_create_native(jl_array_t *methods, const jl_cgparams_t cgparams)
     // and set them to be internalized and initialized at startup
     for (auto &global : gvars) {
         GlobalVariable *G = cast<GlobalVariable>(clone->getNamedValue(global));
-        G->setInitializer(ConstantPointerNull::get(cast<PointerType>(G->getValueType())));
-        G->setLinkage(GlobalVariable::InternalLinkage);
+        if (!standalone_aot_mode) {
+            G->setInitializer(ConstantPointerNull::get(cast<PointerType>(G->getValueType())));
+            G->setLinkage(GlobalVariable::InternalLinkage);
+        }
         data->jl_sysimg_gvars.push_back(G);
     }
 
@@ -383,7 +402,7 @@ static void reportWriterError(const ErrorInfoBase &E)
 
 // takes the running content that has collected in the shadow module and dump it to disk
 // this builds the object file portion of the sysimage files for fast startup
-extern "C"
+extern "C" JL_DLLEXPORT
 void jl_dump_native(void *native_code,
         const char *bc_fname, const char *unopt_bc_fname, const char *obj_fname,
         const char *sysimg_data, size_t sysimg_len)
