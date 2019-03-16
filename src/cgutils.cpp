@@ -605,11 +605,14 @@ static Value *julia_binding_gv(jl_codectx_t &ctx, jl_binding_t *b)
                        T_pprjlvalue));
     }
     Value *bv;
-    if (imaging_mode || standalone_aot_mode)
+    if (imaging_mode || standalone_aot_mode) {
+        jl_printf(JL_STDERR," jbg, %s, value: %p, globalref: %p, b: %p, ismethd: %d\n", 
+                  jl_symbol_name(b->name), b->value, b->globalref, b, jl_isa(b->value, (jl_value_t*)jl_function_type));
         bv = emit_bitcast(ctx,
                 tbaa_decorate(tbaa_const,
-                              ctx.builder.CreateLoad(T_pjlvalue, julia_pgv(ctx, "*", b->name, b->owner, b))),
+                              ctx.builder.CreateLoad(T_pjlvalue, julia_pgv(ctx, "*", b->name, b->owner, b->value))),
                 T_pprjlvalue);
+    }
     else
         bv = ConstantExpr::getBitCast(literal_static_pointer_val(b), T_pprjlvalue);
     return julia_binding_gv(ctx, bv);

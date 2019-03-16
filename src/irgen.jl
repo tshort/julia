@@ -23,28 +23,25 @@ function irgen(@nospecialize(f), @nospecialize(tt); dump = false)
     params = Base.CodegenParams(track_allocations=false,
                                 code_coverage=false,
                                 static_alloc=false,
-                                prefer_specsig=true,
-                                raise_exception=hook_raise_exception)
+                                prefer_specsig=true)
+                                # raise_exception=hook_raise_exception)
 
     # generate IR
     ccall(:jl_set_standalone_aot_mode, Nothing, ())
-    native_code = ccall(:jl_create_native, Ptr{Cvoid},
-                        (Vector{Core.MethodInstance}, Base.CodegenParams), [linfo], params)
-    @assert native_code != C_NULL
-    # ccall(:jl_emit_globals_table, Nothing, (Ptr{Cvoid},), native_code)
-    llvm_mod_ref = ccall(:jl_get_llvm_module, LLVM.API.LLVMModuleRef,
-                         (Ptr{Cvoid},), native_code)
-    @assert llvm_mod_ref != C_NULL
-#    if dump
-#	    a = Array{UInt8}(undef, 1000000)
-#	    ptr = pointer(a)
-#	    ccall(:jl_dump_native, Nothing, 
-#		  (Ptr{Cvoid}, String, Cstring, Cstring, Ptr{UInt8}, Csize_t), 
-#		  native_code, Cvoid, "unopt_bc_fname.bc", Cvoid, ptr, length(a))
-#		  #native_code, "bc_fname.bc", "unopt_bc_fname.bc", "obj_fname.o", ptr, length(a))
-#    end
-    ccall(:jl_clear_standalone_aot_mode, Nothing, ())
-    LLVM.Module(llvm_mod_ref)
+    local llvm_mod_ref
+    try
+        native_code = ccall(:jl_create_native, Ptr{Cvoid},
+                            (Vector{Core.MethodInstance}, Base.CodegenParams), [linfo], params)
+        @assert native_code != C_NULL
+        llvm_mod_ref = ccall(:jl_get_llvm_module, LLVM.API.LLVMModuleRef,
+                             (Ptr{Cvoid},), native_code)
+        @assert llvm_mod_ref != C_NULL
+        ccall(:jl_clear_standalone_aot_mode, Nothing, ())
+    catch e
+        ccall(:jl_clear_standalone_aot_mode, Nothing, ())
+        println(e)
+    end
+    return LLVM.Module(llvm_mod_ref)
 end
 
 # Various tests
@@ -65,31 +62,51 @@ f_Int() = UInt32
 println("f_Int")
 m_Int = irgen(f_Int, Tuple{})
 
-f_string() = "asdfjkl"
+astr = "hellllllo world"
+f_string() = "hellllllo world!"
+@show pointer_from_objref(astr)
+@show pointer_from_objref(String)
 println("f_string")
 m_string = irgen(f_string, Tuple{})
+
+sv = Core.svec(1,2,3,4)
+@show pointer_from_objref(sv)
+f_sv() = sv
+println("f_sv")
+m_sv = irgen(f_sv, Tuple{})
+
+arr = [9,9,9,9]
+@show pointer_from_objref(arr)
+@show pointer_from_objref(Array{Int,1})
+f_array() = arr
+println("f_array")
+m_array = irgen(f_array, Tuple{})
+
+struct AaaaaA
+    a::Int
+    b::Float64
+end
+
+f_Atype() = AaaaaA
+println("f_Atype")
+m_Atype = irgen(f_Atype, Tuple{}, dump = false)
+
+@noinline f_A() = AaaaaA(1, 2.2)
+@noinline f_A2(x) = x.a > 2 ? 2*x.b : x.b
+println("f_A")
+m_A = irgen(f_A, Tuple{})
+m_A2 = irgen(f_A2, Tuple{AaaaaA})
+
+# Makes a really big mini image if the type is included in the lookup
 
 const a = Ref(0x80808080)
 f_jglobal() = a[]
 println("f_jglobal")
 m_jglobal = irgen(f_jglobal, Tuple{})
 
-struct A
-    a::Int
-    b::Float64
-end
+f_arraysum(x) = sum([x, 1])
+println("f_arraysum")
+m_arraysum = irgen(f_arraysum, Tuple{Int})
 
-f_Atype() = A
-println("f_Atype")
-m_Atype = irgen(f_Atype, Tuple{})
-
-@noinline f_A() = A(1, 2.2)
-@noinline f_A2(x) = x.a > 2 ? 2*x.b : x.b
-println("f_A")
-m_A = irgen(f_A, Tuple{})
-m_A2 = irgen(f_A2, Tuple{A})
-
-# f_arraysum(x) = sum([x, 1])
-# m_arraysum = irgen(f_arraysum, Tuple{Int})
 end   # module
 nothing

@@ -159,7 +159,7 @@ static void emit_offset_table(Module &mod, const std::vector<GlobalValue*> &vars
 {
     // Emit a global variable with all the variable addresses.
     // The cloning pass will convert them into offsets.
-    assert(!vars.empty());
+    if (vars.empty()) return;
     size_t nvars = vars.size();
     std::vector<Constant*> addrs(nvars);
     for (size_t i = 0; i < nvars; i++) {
@@ -173,9 +173,17 @@ static void emit_offset_table(Module &mod, const std::vector<GlobalValue*> &vars
                        name);
 }
 
-// This doesn't do much
+// Export a globals table and a mini sysimage with strings, symbols, and other global data.
+// Next steps:
+//   - Better explore layout of Julia data
+//   - Work out how to determine internal vs. external globals
+//   - Compile IR to a native dynamic library
+//   - Write code to read the mini sysimage
+//   - Work out how to initialize type pointers
 extern "C" JL_DLLEXPORT
-void jl_emit_globals_table(void *native_code) {
+void jl_emit_globals_table(void *native_code, std::vector<jl_value_t *> &gvarvalues) {
+// void jl_emit_globals_table(void *native_code) {
+    
     jl_native_code_desc_t *data = (jl_native_code_desc_t*)native_code;
     LLVMContext &Context = data->M->getContext();
     Type *T_size;
@@ -187,6 +195,22 @@ void jl_emit_globals_table(void *native_code) {
 
     // add metadata information
     emit_offset_table(*data->M, data->jl_sysimg_gvars, "jl_sysimg_gvars", T_psize);
+        
+    // jl_printf(JL_STDERR,"  jegt, gvarvalues pointers: %p, %p\n", gvarvalues[0], gvarvalues[1]);
+
+    // add system image data
+    ios_t *s = NULL;
+    s = jl_create_mini_image(native_code, &gvarvalues[0], gvarvalues.size());
+
+    Constant *dataarray = ConstantDataArray::get(Context,
+        ArrayRef<uint8_t>((const unsigned char*)s->buf, (size_t)s->size));
+    addComdat(new GlobalVariable(*data->M, dataarray->getType(), false,
+                                 GlobalVariable::ExternalLinkage,
+                                 dataarray, "jl_system_image_data"))->setAlignment(64);
+    Constant *len = ConstantInt::get(T_size, (size_t)s->size);
+    addComdat(new GlobalVariable(*data->M, len->getType(), true,
+                                 GlobalVariable::ExternalLinkage,
+                                 len, "jl_system_image_size"));
 }
 
 static bool is_safe_char(unsigned char c)
@@ -298,10 +322,16 @@ void *jl_create_native(jl_array_t *methods, const jl_cgparams_t cgparams)
 
     // process the globals array, before jl_merge_module destroys them
     std::vector<std::string> gvars;
+    std::vector<jl_value_t *> gvarvalues;
     for (auto &global : params.globals) {
-        jl_printf(JL_STDERR," jcn global, %s\n", global.second->getName());
-        gvars.push_back(global.second->getName());
-        data->jl_value_to_llvm[global.first] = gvars.size();
+        jl_printf(JL_STDERR," jcn global, %s, first: %p, second: %p\n", global.second->getName(), global.first, (void *)global.second);
+        jl_printf(JL_STDERR," jcn global, type: %s\n", jl_typeof_str((jl_value_t*)global.first));
+        jl_printf(JL_STDERR," jcn global, isfun: %d\n", jl_isa((jl_value_t *)global.first, (jl_value_t*)jl_function_type));
+        if (!jl_isa((jl_value_t *)global.first, (jl_value_t*)jl_function_type)) {
+            gvars.push_back(global.second->getName());
+            gvarvalues.push_back((jl_value_t *)global.first);
+            data->jl_value_to_llvm[global.first] = gvars.size();
+        }
     }
 
     // clones the contents of the module `m` to the shadow_output collector
@@ -337,6 +367,7 @@ void *jl_create_native(jl_array_t *methods, const jl_cgparams_t cgparams)
     // now get references to the globals in the merged module
     // and set them to be internalized and initialized at startup
     for (auto &global : gvars) {
+        jl_printf(JL_STDERR," -- ref jcn global, %s\n", global.c_str());
         GlobalVariable *G = cast<GlobalVariable>(clone->getNamedValue(global));
         if (!standalone_aot_mode) {
             G->setInitializer(ConstantPointerNull::get(cast<PointerType>(G->getValueType())));
@@ -371,6 +402,9 @@ void *jl_create_native(jl_array_t *methods, const jl_cgparams_t cgparams)
     }
 
     data->M = std::move(clone);
+    
+    jl_emit_globals_table((void*)data, gvarvalues);
+    // jl_emit_globals_table((void*)data);
 
     JL_UNLOCK(&codegen_lock); // Might GC
     return (void*)data;
