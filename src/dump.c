@@ -2828,6 +2828,60 @@ JL_DLLEXPORT int jl_save_incremental(const char *fname, jl_array_t *worklist)
     return 0;
 }
 
+JL_DLLEXPORT void jl_save_mini_image_to_stream(ios_t *f, jl_array_t *worklist)
+{
+    JL_TIMING(SAVE_MODULE);
+
+    serializer_worklist = worklist;
+    
+    arraylist_new(&reinit_list, 0);
+    htable_new(&edges_map, 0);
+    htable_new(&backref_table, 5000);
+    ptrhash_put(&backref_table, jl_main_module, (char*)HT_NOTFOUND + 1);
+    backref_table_numel = 1;
+    jl_idtable_type = jl_base_module ? jl_get_global(jl_base_module, jl_symbol("IdDict")) : NULL;
+    jl_idtable_typename = jl_base_module ? ((jl_datatype_t*)jl_unwrap_unionall((jl_value_t*)jl_idtable_type))->name : NULL;
+    jl_bigint_type = jl_base_module ? jl_get_global(jl_base_module, jl_symbol("BigInt")) : NULL;
+    if (jl_bigint_type) {
+        gmp_limb_size = jl_unbox_long(jl_get_global((jl_module_t*)jl_get_global(jl_base_module, jl_symbol("GMP")),
+                                                    jl_symbol("BITS_PER_LIMB"))) / 8;
+    }
+
+    jl_array_t *mod_array = NULL, *udeps = NULL;
+    mod_array = jl_get_loaded_modules();
+
+    int en = jl_gc_enable(0); // edges map is not gc-safe
+    jl_array_t *lambdas = jl_alloc_vec_any(0);
+    jl_array_t *edges = jl_alloc_vec_any(0);
+
+    size_t i;
+    size_t len = jl_array_len(mod_array);
+    for (i = 0; i < len; i++) {
+        jl_module_t *m = (jl_module_t*)jl_array_ptr_ref(mod_array, i);
+        assert(jl_is_module(m));
+        jl_collect_lambdas_from_mod(lambdas, m);
+    }
+
+    jl_collect_backedges(edges);
+
+    jl_serializer_state s = {
+        f, MODE_MODULE,
+        NULL,
+        jl_get_ptls_states(),
+        mod_array
+    };
+    jl_serialize_value(&s, worklist);
+    jl_serialize_value(&s, lambdas);
+    jl_serialize_value(&s, edges);
+    jl_finalize_serializer(&s);
+    serializer_worklist = NULL;
+
+    jl_gc_enable(en);
+    htable_reset(&edges_map, 0);
+    htable_reset(&backref_table, 0);
+    arraylist_free(&reinit_list);
+}
+
 #ifndef JL_NDEBUG
 // skip the performance optimizations of jl_types_equal and just use subtyping directly
 // one of these types is invalid - that's why we're doing the recache type operation

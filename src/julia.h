@@ -1484,6 +1484,7 @@ JL_DLLEXPORT int jl_deserialize_verify_header(ios_t *s);
 JL_DLLEXPORT void jl_preload_sysimg_so(const char *fname);
 JL_DLLEXPORT void jl_set_sysimg_so(void *handle);
 JL_DLLEXPORT ios_t *jl_create_system_image(void *);
+JL_DLLEXPORT void jl_save_mini_image_to_stream(ios_t *f, jl_array_t *worklist);
 JL_DLLEXPORT ios_t *jl_create_mini_image(void *_native_data, jl_value_t **gvars, size_t nvars);
 JL_DLLEXPORT void jl_save_system_image(const char *fname);
 JL_DLLEXPORT void jl_restore_system_image(const char *fname);

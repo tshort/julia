@@ -1370,134 +1370,134 @@ static void jl_save_system_image_to_stream(ios_t *f)
     jl_gc_enable(en);
 }
 
-static void jl_save_mini_image_to_stream(ios_t *f, jl_value_t **gvars, size_t nvars)
-{
-    jl_gc_collect(1); // full
-    jl_gc_collect(0); // incremental (sweep finalizers)
-    JL_TIMING(SYSIMG_DUMP);
-    int en = jl_gc_enable(0);
-    jl_init_serializer2(1);
-    htable_reset(&backref_table, 250000);
-    arraylist_new(&reinit_list, 0);
-    backref_table_numel = 0;
-    ios_t sysimg, const_data, symbols, relocs, gvar_record, fptr_record;
-    ios_mem(&sysimg,     1000000);
-    ios_mem(&const_data,  100000);
-    ios_mem(&symbols,     100000);
-    ios_mem(&relocs,      100000);
-    ios_mem(&gvar_record, 100000);
-    ios_mem(&fptr_record, 100000);
-    jl_serializer_state s;
-    s.s = &sysimg;
-    s.const_data = &const_data;
-    s.symbols = &symbols;
-    s.relocs = &relocs;
-    s.gvar_record = &gvar_record;
-    s.fptr_record = &fptr_record;
-    s.ptls = jl_get_ptls_states();
-    arraylist_new(&s.relocs_list, 0);
-    arraylist_new(&s.gctags_list, 0);
+// static void jl_save_mini_image_to_stream(ios_t *f, jl_value_t **gvars, size_t nvars)
+// {
+//     jl_gc_collect(1); // full
+//     jl_gc_collect(0); // incremental (sweep finalizers)
+//     JL_TIMING(SYSIMG_DUMP);
+//     int en = jl_gc_enable(0);
+//     jl_init_serializer2(1);
+//     htable_reset(&backref_table, 250000);
+//     arraylist_new(&reinit_list, 0);
+//     backref_table_numel = 0;
+//     ios_t sysimg, const_data, symbols, relocs, gvar_record, fptr_record;
+//     ios_mem(&sysimg,     1000000);
+//     ios_mem(&const_data,  100000);
+//     ios_mem(&symbols,     100000);
+//     ios_mem(&relocs,      100000);
+//     ios_mem(&gvar_record, 100000);
+//     ios_mem(&fptr_record, 100000);
+//     jl_serializer_state s;
+//     s.s = &sysimg;
+//     s.const_data = &const_data;
+//     s.symbols = &symbols;
+//     s.relocs = &relocs;
+//     s.gvar_record = &gvar_record;
+//     s.fptr_record = &fptr_record;
+//     s.ptls = jl_get_ptls_states();
+//     arraylist_new(&s.relocs_list, 0);
+//     arraylist_new(&s.gctags_list, 0);
 
-    // empty!(Core.ARGS)
-    if (jl_core_module != NULL) {
-        jl_array_t *args = (jl_array_t*)jl_get_global(jl_core_module, jl_symbol("ARGS"));
-        if (args != NULL) {
-            jl_array_del_end(args, jl_array_len(args));
-        }
-    }
+//     // empty!(Core.ARGS)
+//     if (jl_core_module != NULL) {
+//         jl_array_t *args = (jl_array_t*)jl_get_global(jl_core_module, jl_symbol("ARGS"));
+//         if (args != NULL) {
+//             jl_array_del_end(args, jl_array_len(args));
+//         }
+//     }
 
-    jl_idtable_type = jl_base_module ? jl_get_global(jl_base_module, jl_symbol("IdDict")) : NULL;
-    jl_idtable_typename = jl_base_module ? ((jl_datatype_t*)jl_unwrap_unionall((jl_value_t*)jl_idtable_type))->name : NULL;
-    jl_bigint_type = jl_base_module ? jl_get_global(jl_base_module, jl_symbol("BigInt")) : NULL;
-    if (jl_bigint_type) {
-        gmp_limb_size = jl_unbox_long(jl_get_global((jl_module_t*)jl_get_global(jl_base_module, jl_symbol("GMP")),
-                                                    jl_symbol("BITS_PER_LIMB"))) / 8;
-    }
+//     jl_idtable_type = jl_base_module ? jl_get_global(jl_base_module, jl_symbol("IdDict")) : NULL;
+//     jl_idtable_typename = jl_base_module ? ((jl_datatype_t*)jl_unwrap_unionall((jl_value_t*)jl_idtable_type))->name : NULL;
+//     jl_bigint_type = jl_base_module ? jl_get_global(jl_base_module, jl_symbol("BigInt")) : NULL;
+//     if (jl_bigint_type) {
+//         gmp_limb_size = jl_unbox_long(jl_get_global((jl_module_t*)jl_get_global(jl_base_module, jl_symbol("GMP")),
+//                                                     jl_symbol("BITS_PER_LIMB"))) / 8;
+//     }
 
-    { // step 1: record values (recursively) that need to go in the image
-        for (size_t i = 0; i < nvars; i++) {
-            // jl_printf(JL_STDERR, "   serializing start\n");
-            // jl_serialize_value(&s, *(jl_value_t **)gvars[i]);
-            jl_serialize_value(&s, gvars[i]);
-        }
-    }
+//     { // step 1: record values (recursively) that need to go in the image
+//         for (size_t i = 0; i < nvars; i++) {
+//             // jl_printf(JL_STDERR, "   serializing start\n");
+//             // jl_serialize_value(&s, *(jl_value_t **)gvars[i]);
+//             jl_serialize_value(&s, gvars[i]);
+//         }
+//     }
 
-    { // step 2: build all the sysimg sections
-        write_padding(&sysimg, sizeof(uint32_t));
-        jl_write_values(&s);
-        jl_write_relocations(&s);
-        jl_write_gv_syms(&s, jl_get_root_symbol());
-        // ensure everything in deser_tag are reassociated with their GlobalValue
-        uintptr_t i;
-        for (i = 0; i < deser_tag.len; i++) {
-            jl_value_t *v = (jl_value_t*)deser_tag.items[i];
-            record_gvar(&s, jl_get_llvm_gv(native_functions, v), ((uintptr_t)TagRef << RELOC_TAG_OFFSET) + i);
-        }
-    }
+//     { // step 2: build all the sysimg sections
+//         write_padding(&sysimg, sizeof(uint32_t));
+//         jl_write_values(&s);
+//         jl_write_relocations(&s);
+//         jl_write_gv_syms(&s, jl_get_root_symbol());
+//         // ensure everything in deser_tag are reassociated with their GlobalValue
+//         uintptr_t i;
+//         for (i = 0; i < deser_tag.len; i++) {
+//             jl_value_t *v = (jl_value_t*)deser_tag.items[i];
+//             record_gvar(&s, jl_get_llvm_gv(native_functions, v), ((uintptr_t)TagRef << RELOC_TAG_OFFSET) + i);
+//         }
+//     }
 
-    // step 3: combine all of the sections into one file
-    write_uint32(f, sysimg.size - sizeof(uint32_t));
-    ios_seek(&sysimg, sizeof(uint32_t));
-    ios_copyall(f, &sysimg);
-    ios_close(&sysimg);
+//     // step 3: combine all of the sections into one file
+//     write_uint32(f, sysimg.size - sizeof(uint32_t));
+//     ios_seek(&sysimg, sizeof(uint32_t));
+//     ios_copyall(f, &sysimg);
+//     ios_close(&sysimg);
 
-    write_uint32(f, const_data.size);
-    // realign stream to max-alignment for data
-    write_padding(f, LLT_ALIGN(ios_pos(f), 16) - ios_pos(f));
-    ios_seek(&const_data, 0);
-    ios_copyall(f, &const_data);
-    ios_close(&const_data);
+//     write_uint32(f, const_data.size);
+//     // realign stream to max-alignment for data
+//     write_padding(f, LLT_ALIGN(ios_pos(f), 16) - ios_pos(f));
+//     ios_seek(&const_data, 0);
+//     ios_copyall(f, &const_data);
+//     ios_close(&const_data);
 
-    write_uint32(f, symbols.size);
-    ios_seek(&symbols, 0);
-    ios_copyall(f, &symbols);
-    ios_close(&symbols);
+//     write_uint32(f, symbols.size);
+//     ios_seek(&symbols, 0);
+//     ios_copyall(f, &symbols);
+//     ios_close(&symbols);
 
-    write_uint32(f, relocs.size);
-    ios_seek(&relocs, 0);
-    ios_copyall(f, &relocs);
-    ios_close(&relocs);
+//     write_uint32(f, relocs.size);
+//     ios_seek(&relocs, 0);
+//     ios_copyall(f, &relocs);
+//     ios_close(&relocs);
 
-    write_uint32(f, gvar_record.size);
-    ios_seek(&gvar_record, 0);
-    ios_copyall(f, &gvar_record);
-    ios_close(&gvar_record);
+//     write_uint32(f, gvar_record.size);
+//     ios_seek(&gvar_record, 0);
+//     ios_copyall(f, &gvar_record);
+//     ios_close(&gvar_record);
 
-    write_uint32(f, fptr_record.size);
-    ios_seek(&fptr_record, 0);
-    ios_copyall(f, &fptr_record);
-    ios_close(&fptr_record);
+//     write_uint32(f, fptr_record.size);
+//     ios_seek(&fptr_record, 0);
+//     ios_copyall(f, &fptr_record);
+//     ios_close(&fptr_record);
 
-    { // step 4: record locations of special roots
-        s.s = f;
-        jl_finalize_serializer(&s);
-        // jl_write_value(&s, jl_main_module);
-        // jl_write_value(&s, jl_top_module);
-        // jl_write_value(&s, jl_typeinf_func);
-        // write_uint32(f, jl_typeinf_world);
-        // jl_write_value(&s, jl_type_typename->mt);
-        // jl_write_value(&s, jl_intrinsic_type->name->mt);
-        // jl_write_value(&s, jl_sym_type->name->mt);
-        // jl_write_value(&s, jl_array_typename->mt);
-        // jl_write_value(&s, jl_module_type->name->mt);
-        // uintptr_t i;
-        // for (i = 0; i < builtin_typenames.len; i++) {
-        //     jl_write_value(&s, ((jl_typename_t*)builtin_typenames.items[i])->cache);
-        //     jl_write_value(&s, ((jl_typename_t*)builtin_typenames.items[i])->linearcache);
-        // }
-        write_uint32(f, jl_get_t_uid_ctr());
-        write_uint32(f, jl_get_gs_ctr());
-        write_uint32(f, jl_world_counter);
-    }
+//     { // step 4: record locations of special roots
+//         s.s = f;
+//         jl_finalize_serializer(&s);
+//         // jl_write_value(&s, jl_main_module);
+//         // jl_write_value(&s, jl_top_module);
+//         // jl_write_value(&s, jl_typeinf_func);
+//         // write_uint32(f, jl_typeinf_world);
+//         // jl_write_value(&s, jl_type_typename->mt);
+//         // jl_write_value(&s, jl_intrinsic_type->name->mt);
+//         // jl_write_value(&s, jl_sym_type->name->mt);
+//         // jl_write_value(&s, jl_array_typename->mt);
+//         // jl_write_value(&s, jl_module_type->name->mt);
+//         // uintptr_t i;
+//         // for (i = 0; i < builtin_typenames.len; i++) {
+//         //     jl_write_value(&s, ((jl_typename_t*)builtin_typenames.items[i])->cache);
+//         //     jl_write_value(&s, ((jl_typename_t*)builtin_typenames.items[i])->linearcache);
+//         // }
+//         write_uint32(f, jl_get_t_uid_ctr());
+//         write_uint32(f, jl_get_gs_ctr());
+//         write_uint32(f, jl_world_counter);
+//     }
 
-    arraylist_free(&layout_table);
-    arraylist_free(&reinit_list);
-    arraylist_free(&s.relocs_list);
-    arraylist_free(&s.gctags_list);
-    jl_cleanup_serializer2();
+//     arraylist_free(&layout_table);
+//     arraylist_free(&reinit_list);
+//     arraylist_free(&s.relocs_list);
+//     arraylist_free(&s.gctags_list);
+//     jl_cleanup_serializer2();
 
-    jl_gc_enable(en);
-}
+//     jl_gc_enable(en);
+// }
 
 JL_DLLEXPORT ios_t *jl_create_system_image(void *_native_data)
 {
@@ -1508,14 +1508,14 @@ JL_DLLEXPORT ios_t *jl_create_system_image(void *_native_data)
     return f;
 }
 
-JL_DLLEXPORT ios_t *jl_create_mini_image(void *_native_data, jl_value_t **gvars, size_t nvars)
-{
-    ios_t *f = (ios_t*)malloc(sizeof(ios_t));
-    ios_mem(f, 0);
-    native_functions = _native_data;
-    jl_save_mini_image_to_stream(f, gvars, nvars);
-    return f;
-}
+// JL_DLLEXPORT ios_t *jl_create_mini_image(void *_native_data, jl_value_t **gvars, size_t nvars)
+// {
+//     ios_t *f = (ios_t*)malloc(sizeof(ios_t));
+//     ios_mem(f, 0);
+//     native_functions = _native_data;
+//     jl_save_mini_image_to_stream(f, gvars, nvars);
+//     return f;
+// }
 
 JL_DLLEXPORT size_t ios_write_direct(ios_t *dest, ios_t *src);
 JL_DLLEXPORT void jl_save_system_image(const char *fname)

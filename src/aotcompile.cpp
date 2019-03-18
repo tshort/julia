@@ -175,13 +175,18 @@ static void emit_offset_table(Module &mod, const std::vector<GlobalValue*> &vars
 
 // Export a globals table and a mini sysimage with strings, symbols, and other global data.
 // Next steps:
-//   - Better explore layout of Julia data
+//   x Better explore layout of Julia data
+//   x Dump a simple module and look at results
+//   - Try using machinery in dump.c
+//     - Need to write new save and restore; skip writing & reading modules
+//     - Need to pass in the list of globals and record where these are stored
+//     - When restoring, need to use the storage locations to assign the proper pointers
 //   - Work out how to determine internal vs. external globals
 //   - Compile IR to a native dynamic library
 //   - Write code to read the mini sysimage
 //   - Work out how to initialize type pointers
 extern "C" JL_DLLEXPORT
-void jl_emit_globals_table(void *native_code, std::vector<jl_value_t *> &gvarvalues) {
+void jl_emit_globals_table(void *native_code, jl_array_t *gvararray) {
 // void jl_emit_globals_table(void *native_code) {
     
     jl_native_code_desc_t *data = (jl_native_code_desc_t*)native_code;
@@ -199,18 +204,22 @@ void jl_emit_globals_table(void *native_code, std::vector<jl_value_t *> &gvarval
     // jl_printf(JL_STDERR,"  jegt, gvarvalues pointers: %p, %p\n", gvarvalues[0], gvarvalues[1]);
 
     // add system image data
-    ios_t *s = NULL;
-    s = jl_create_mini_image(native_code, &gvarvalues[0], gvarvalues.size());
+    ios_t ff;
+    ios_t *f = &ff;
+    ios_mem(f, 100);
+
+    jl_save_mini_image_to_stream(f, gvararray);
 
     Constant *dataarray = ConstantDataArray::get(Context,
-        ArrayRef<uint8_t>((const unsigned char*)s->buf, (size_t)s->size));
+        ArrayRef<uint8_t>((const unsigned char*)f->buf, (size_t)f->size));
     addComdat(new GlobalVariable(*data->M, dataarray->getType(), false,
                                  GlobalVariable::ExternalLinkage,
                                  dataarray, "jl_system_image_data"))->setAlignment(64);
-    Constant *len = ConstantInt::get(T_size, (size_t)s->size);
+    Constant *len = ConstantInt::get(T_size, (size_t)f->size);
     addComdat(new GlobalVariable(*data->M, len->getType(), true,
                                  GlobalVariable::ExternalLinkage,
                                  len, "jl_system_image_size"));
+    ios_close(f);
 }
 
 static bool is_safe_char(unsigned char c)
@@ -322,14 +331,14 @@ void *jl_create_native(jl_array_t *methods, const jl_cgparams_t cgparams)
 
     // process the globals array, before jl_merge_module destroys them
     std::vector<std::string> gvars;
-    std::vector<jl_value_t *> gvarvalues;
+    jl_array_t *gvararray = jl_alloc_vec_any(0);
     for (auto &global : params.globals) {
         jl_printf(JL_STDERR," jcn global, %s, first: %p, second: %p\n", global.second->getName(), global.first, (void *)global.second);
         jl_printf(JL_STDERR," jcn global, type: %s\n", jl_typeof_str((jl_value_t*)global.first));
         jl_printf(JL_STDERR," jcn global, isfun: %d\n", jl_isa((jl_value_t *)global.first, (jl_value_t*)jl_function_type));
         if (!jl_isa((jl_value_t *)global.first, (jl_value_t*)jl_function_type)) {
             gvars.push_back(global.second->getName());
-            gvarvalues.push_back((jl_value_t *)global.first);
+            jl_array_ptr_1d_push(gvararray, (jl_value_t *)global.first);
             data->jl_value_to_llvm[global.first] = gvars.size();
         }
     }
@@ -403,7 +412,7 @@ void *jl_create_native(jl_array_t *methods, const jl_cgparams_t cgparams)
 
     data->M = std::move(clone);
     
-    jl_emit_globals_table((void*)data, gvarvalues);
+    jl_emit_globals_table((void*)data, gvararray);
     // jl_emit_globals_table((void*)data);
 
     JL_UNLOCK(&codegen_lock); // Might GC

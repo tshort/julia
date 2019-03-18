@@ -46,21 +46,21 @@ end
 
 # Various tests
 
-f_ccall() = ccall("myfun", Int, ())
-println("f_ccall")
-m_ccall = irgen(f_ccall, Tuple{})
+# f_ccall() = ccall("myfun", Int, ())
+# println("f_ccall")
+# m_ccall = irgen(f_ccall, Tuple{})
 
-f_cglobal() = cglobal("myglobal", Int)
-println("f_cglobal")
-m_cglobal = irgen(f_cglobal, Tuple{})
+# f_cglobal() = cglobal("myglobal", Int)
+# println("f_cglobal")
+# m_cglobal = irgen(f_cglobal, Tuple{})
 
-f_cglobal2() = cglobal("myglobal", Float64)
-println("f_cglobal2")
-m_cglobal2 = irgen(f_cglobal2, Tuple{})
+# f_cglobal2() = cglobal("myglobal", Float64)
+# println("f_cglobal2")
+# m_cglobal2 = irgen(f_cglobal2, Tuple{})
 
-f_Int() = UInt32
-println("f_Int")
-m_Int = irgen(f_Int, Tuple{})
+# f_Int() = UInt32
+# println("f_Int")
+# m_Int = irgen(f_Int, Tuple{})
 
 astr = "hellllllo world"
 f_string() = "hellllllo world!"
