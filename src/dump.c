@@ -3272,6 +3272,77 @@ JL_DLLEXPORT jl_value_t *jl_restore_incremental(const char *fname, jl_array_t *m
     return _jl_restore_incremental(&f, mod_array);
 }
 
+JL_DLLEXPORT jl_value_t *jl_restore_mini_sysimg(ios_t *f)
+{
+    JL_TIMING(LOAD_MODULE);
+    jl_ptls_t ptls = jl_get_ptls_states();
+
+    jl_bigint_type = jl_base_module ? jl_get_global(jl_base_module, jl_symbol("BigInt")) : NULL;
+    if (jl_bigint_type) {
+        gmp_limb_size = jl_unbox_long(jl_get_global((jl_module_t*)jl_get_global(jl_base_module, jl_symbol("GMP")),
+                                                    jl_symbol("BITS_PER_LIMB"))) / 8;
+    }
+
+    // list of world counters of incremental dependencies
+    arraylist_t dependent_worlds;
+    arraylist_new(&dependent_worlds, 0);
+
+    // prepare to deserialize
+    int en = jl_gc_enable(0);
+    jl_gc_enable_finalizers(ptls, 0);
+    ++jl_world_counter; // reserve a world age for the deserialization
+
+    arraylist_new(&backref_list, 4000);
+    arraylist_push(&backref_list, jl_main_module);
+    arraylist_new(&flagref_list, 0);
+    arraylist_push(&dependent_worlds, (void*)jl_world_counter);
+    arraylist_push(&dependent_worlds, (void*)jl_main_module->primary_world);
+    qsort(dependent_worlds.items, dependent_worlds.len, sizeof(size_t), size_isgreater);
+
+    jl_array_t *mod_array = jl_alloc_vec_any(0);
+
+    jl_serializer_state s = {
+        f, MODE_MODULE,
+        NULL,
+        ptls,
+        mod_array
+    };
+    jl_array_t *restored = (jl_array_t*)jl_deserialize_value(&s, (jl_value_t**)&restored);
+    serializer_worklist = restored;
+
+    // get list of external generic functions
+    // jl_value_t *external_methods = jl_deserialize_value(&s, &external_methods);
+    // jl_value_t *external_backedges = jl_deserialize_value(&s, &external_backedges);
+
+    arraylist_t *tracee_list = NULL;
+    if (jl_newmeth_tracer)
+        tracee_list = arraylist_new((arraylist_t*)malloc(sizeof(arraylist_t)), 0);
+
+    // at this point, the AST is fully reconstructed, but still completely disconnected
+    // now all of the interconnects will be created
+    jl_recache_types(); // make all of the types identities correct
+    // jl_insert_methods((jl_array_t*)external_methods); // hook up methods of external generic functions (needs to be after recache types)
+    // jl_recache_other(&dependent_worlds); // make all of the other objects identities correct (needs to be after insert methods)
+    // jl_array_t *init_order = jl_finalize_deserializer(&s, tracee_list); // done with f and s (needs to be after recache)
+
+    // JL_GC_PUSH3(&init_order, &restored, &external_backedges);
+    jl_gc_enable(en); // subtyping can allocate a lot, not valid before recache-other
+
+    // jl_insert_backedges((jl_array_t*)external_backedges, &dependent_worlds); // restore external backedges (needs to be last)
+
+    serializer_worklist = NULL;
+    arraylist_free(&flagref_list);
+    arraylist_free(&backref_list);
+    arraylist_free(&dependent_worlds);
+    ios_close(f);
+
+    jl_gc_enable_finalizers(ptls, 1); // make sure we don't run any Julia code concurrently before this point
+    // jl_value_t *ret = (jl_value_t*)jl_svec(2, restored, init_order);
+    JL_GC_POP();
+    return restored;
+    // return (jl_value_t*)ret;
+}
+
 // --- init ---
 
 void jl_init_serializer(void)

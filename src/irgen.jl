@@ -44,6 +44,19 @@ function irgen(@nospecialize(f), @nospecialize(tt); dump = false)
     return LLVM.Module(llvm_mod_ref)
 end
 
+macro c_str(s) unescape_string(replace(s, "\\" => "\\x")) end
+
+function test_read()
+    mini_sysimg = c"\16\88\C6\EB\12\09\00\00\00jkljkljkl\12\05\00\00\00qwery\12\0C\00\00\00asdfasdfasdf\04\07\14@\E6\01\1F\1C=\06\03\00\12\00\12\00\12\16\88\C2\EB\16\88\C2\EB\08\FF\FF\FF\FF"
+    io = IOStream("iosmem")
+    ccall(:ios_mem, Ptr{Cvoid}, (Ptr{UInt8}, UInt), io.ios, 0)
+    write(io, mini_sysimg)
+    seekstart(io)
+    ccall(:jl_restore_mini_sysimg, Any, (Ptr{Cvoid},), io)
+end
+
+rest = test_read()
+
 # Various tests
 
 # f_ccall() = ccall("myfun", Int, ())
@@ -62,51 +75,59 @@ end
 # println("f_Int")
 # m_Int = irgen(f_Int, Tuple{})
 
-astr = "hellllllo world"
-f_string() = "hellllllo world!"
-@show pointer_from_objref(astr)
-@show pointer_from_objref(String)
-println("f_string")
-m_string = irgen(f_string, Tuple{})
+# astr = "hellllllo world"
+# f_string() = "hellllllo world!"
+# @show pointer_from_objref(astr)
+# @show pointer_from_objref(String)
+# println("f_string")
+# m_string = irgen(f_string, Tuple{})
 
-sv = Core.svec(1,2,3,4)
-@show pointer_from_objref(sv)
-f_sv() = sv
-println("f_sv")
-m_sv = irgen(f_sv, Tuple{})
+# sv = Core.svec(1,2,3,4)
+# @show pointer_from_objref(sv)
+# f_sv() = sv
+# println("f_sv")
+# m_sv = irgen(f_sv, Tuple{})
 
-arr = [9,9,9,9]
-@show pointer_from_objref(arr)
-@show pointer_from_objref(Array{Int,1})
-f_array() = arr
-println("f_array")
-m_array = irgen(f_array, Tuple{})
+# arr = [9,9,9,9]
+# @show pointer_from_objref(arr)
+# @show pointer_from_objref(Array{Int,1})
+# f_array() = arr
+# println("f_array")
+# m_array = irgen(f_array, Tuple{})
 
-struct AaaaaA
-    a::Int
-    b::Float64
-end
+# struct AaaaaA
+#     a::Int
+#     b::Float64
+# end
 
-f_Atype() = AaaaaA
-println("f_Atype")
-m_Atype = irgen(f_Atype, Tuple{}, dump = false)
+# f_Atype() = AaaaaA
+# println("f_Atype")
+# m_Atype = irgen(f_Atype, Tuple{}, dump = false)
 
-@noinline f_A() = AaaaaA(1, 2.2)
-@noinline f_A2(x) = x.a > 2 ? 2*x.b : x.b
-println("f_A")
-m_A = irgen(f_A, Tuple{})
-m_A2 = irgen(f_A2, Tuple{AaaaaA})
+# @noinline f_A() = AaaaaA(1, 2.2)
+# @noinline f_A2(x) = x.a > 2 ? 2*x.b : x.b
+# println("f_A")
+# m_A = irgen(f_A, Tuple{})
+# m_A2 = irgen(f_A2, Tuple{AaaaaA})
 
-# Makes a really big mini image if the type is included in the lookup
+# # Makes a really big mini image if the type is included in the lookup
 
-const a = Ref(0x80808080)
-f_jglobal() = a[]
-println("f_jglobal")
-m_jglobal = irgen(f_jglobal, Tuple{})
+# const a = Ref(0x80808080)
+# f_jglobal() = a[]
+# println("f_jglobal")
+# m_jglobal = irgen(f_jglobal, Tuple{})
 
-f_arraysum(x) = sum([x, 1])
-println("f_arraysum")
-m_arraysum = irgen(f_arraysum, Tuple{Int})
+# f_arraysum(x) = sum([x, 1])
+# println("f_arraysum")
+# m_arraysum = irgen(f_arraysum, Tuple{Int})
+
+# f_many() = ("jkljkljkl", :jkljkljkljkl, :asdfasdf, "asdfasdfasdf")
+# f_many() = (:jkljkljkljkl, :asdfasdf, :qwerty)
+# f_many() = ("jkljkljkl", "qwery", "asdfasdfasdf")
+# println("f_many")
+# m_many = irgen(f_many, Tuple{})
+
+
 
 end   # module
 nothing

@@ -177,13 +177,14 @@ static void emit_offset_table(Module &mod, const std::vector<GlobalValue*> &vars
 // Next steps:
 //   x Better explore layout of Julia data
 //   x Dump a simple module and look at results
-//   - Try using machinery in dump.c
-//     - Need to write new save and restore; skip writing & reading modules
+//   x Try using machinery in dump.c
+//   x Need to write new save; skip writing modules
+//   x Work out how to determine internal vs. external globals
+//   - Compile IR to a native dynamic library
+//   - Don't export intrinsics as globals
+//   - Write code to read the mini sysimage
 //     - Need to pass in the list of globals and record where these are stored
 //     - When restoring, need to use the storage locations to assign the proper pointers
-//   - Work out how to determine internal vs. external globals
-//   - Compile IR to a native dynamic library
-//   - Write code to read the mini sysimage
 //   - Work out how to initialize type pointers
 extern "C" JL_DLLEXPORT
 void jl_emit_globals_table(void *native_code, jl_array_t *gvararray) {
@@ -336,10 +337,10 @@ void *jl_create_native(jl_array_t *methods, const jl_cgparams_t cgparams)
         jl_printf(JL_STDERR," jcn global, %s, first: %p, second: %p\n", global.second->getName(), global.first, (void *)global.second);
         jl_printf(JL_STDERR," jcn global, type: %s\n", jl_typeof_str((jl_value_t*)global.first));
         jl_printf(JL_STDERR," jcn global, isfun: %d\n", jl_isa((jl_value_t *)global.first, (jl_value_t*)jl_function_type));
+        gvars.push_back(global.second->getName());
+        data->jl_value_to_llvm[global.first] = gvars.size();
         if (!jl_isa((jl_value_t *)global.first, (jl_value_t*)jl_function_type)) {
-            gvars.push_back(global.second->getName());
             jl_array_ptr_1d_push(gvararray, (jl_value_t *)global.first);
-            data->jl_value_to_llvm[global.first] = gvars.size();
         }
     }
 
@@ -378,10 +379,8 @@ void *jl_create_native(jl_array_t *methods, const jl_cgparams_t cgparams)
     for (auto &global : gvars) {
         jl_printf(JL_STDERR," -- ref jcn global, %s\n", global.c_str());
         GlobalVariable *G = cast<GlobalVariable>(clone->getNamedValue(global));
-        if (!standalone_aot_mode) {
-            G->setInitializer(ConstantPointerNull::get(cast<PointerType>(G->getValueType())));
-            G->setLinkage(GlobalVariable::InternalLinkage);
-        }
+        G->setInitializer(ConstantPointerNull::get(cast<PointerType>(G->getValueType())));
+        G->setLinkage(GlobalVariable::InternalLinkage);
         data->jl_sysimg_gvars.push_back(G);
     }
 
