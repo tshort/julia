@@ -3272,10 +3272,17 @@ JL_DLLEXPORT jl_value_t *jl_restore_incremental(const char *fname, jl_array_t *m
     return _jl_restore_incremental(&f, mod_array);
 }
 
-JL_DLLEXPORT jl_value_t *jl_restore_mini_sysimg(ios_t *f)
+// JL_DLLEXPORT jl_value_t *jl_restore_mini_sysimg(ios_t *f)
+//     jl_restore_mini_sysimg(@jl_sysimg_gvars, @jl_system_image_data, @jl_system_image_size);
+JL_DLLEXPORT jl_value_t *jl_restore_mini_sysimg(void *jl_sysimg_gvars, void *jl_system_image_data, size_t *jl_system_image_size)
 {
     JL_TIMING(LOAD_MODULE);
     jl_ptls_t ptls = jl_get_ptls_states();
+
+    ios_t f;
+    ios_mem(&f, 0);
+    ios_write(&f, jl_system_image_data, *jl_system_image_size);
+    ios_seek(&f, 0);
 
     jl_bigint_type = jl_base_module ? jl_get_global(jl_base_module, jl_symbol("BigInt")) : NULL;
     if (jl_bigint_type) {
@@ -3302,7 +3309,7 @@ JL_DLLEXPORT jl_value_t *jl_restore_mini_sysimg(ios_t *f)
     jl_array_t *mod_array = jl_alloc_vec_any(0);
 
     jl_serializer_state s = {
-        f, MODE_MODULE,
+        &f, MODE_MODULE,
         NULL,
         ptls,
         mod_array
@@ -3334,10 +3341,23 @@ JL_DLLEXPORT jl_value_t *jl_restore_mini_sysimg(ios_t *f)
     arraylist_free(&flagref_list);
     arraylist_free(&backref_list);
     arraylist_free(&dependent_worlds);
-    ios_close(f);
+    ios_close(&f);
+    
+    // restore pointers to global variables
+    for (size_t i = 0, l = jl_array_len(restored); i < l; i++) {
+        ((size_t*)jl_sysimg_gvars)[i] = jl_array_ptr_ref(restored, i);
+    }
+// STATIC_INLINE jl_value_t *jl_array_ptr_ref(void *a JL_PROPAGATES_ROOT, size_t i) JL_NOTSAFEPOINT;
+// static inline uintptr_t *sysimg_gvars(uintptr_t *base, size_t idx)
+// {
+//     return base + sysimg_gvars_offsets[idx] / sizeof(base[0]);
+// }
+// static uintptr_t *sysimg_gvars_base = NULL;
+//             uintptr_t v = get_item_for_reloc(s, base, size, offset);
+//             *sysimg_gvars(sysimg_gvars_base, gvname_index) = v;
 
     jl_gc_enable_finalizers(ptls, 1); // make sure we don't run any Julia code concurrently before this point
-    // jl_value_t *ret = (jl_value_t*)jl_svec(2, restored, init_order);
+
     JL_GC_POP();
     return restored;
     // return (jl_value_t*)ret;
@@ -3454,6 +3474,13 @@ void jl_init_serializer(void)
     arraylist_push(&builtin_typenames, jl_tuple_typename);
     arraylist_push(&builtin_typenames, jl_vararg_typename);
     arraylist_push(&builtin_typenames, jl_namedtuple_typename);
+}
+
+JL_DLLEXPORT void jl_init_basics(void) {
+    jl_gc_init();
+    jl_gc_enable(0);
+    jl_init_types();
+    jl_init_serializer();
 }
 
 #ifdef __cplusplus

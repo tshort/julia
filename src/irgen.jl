@@ -3,7 +3,7 @@
 module X
 import LLVM
 
-function irgen(@nospecialize(f), @nospecialize(tt); dump = false)
+function irgen(@nospecialize(f), @nospecialize(tt), filename = "test.so")
     # get the method instance
     world = typemax(UInt)
     meth = which(f, tt)
@@ -15,16 +15,10 @@ function irgen(@nospecialize(f), @nospecialize(tt); dump = false)
                   (Any, Any, Any, UInt), meth, ti, env, world)
 
     # set-up the compiler interface
-    function hook_raise_exception(insblock::Ptr{Cvoid}, ex::Ptr{Cvoid})
-        insblock = convert(LLVM.API.LLVMValueRef, insblock)
-        ex = convert(LLVM.API.LLVMValueRef, ex)
-        raise_exception(BasicBlock(insblock), Value(ex))
-    end
     params = Base.CodegenParams(track_allocations=false,
                                 code_coverage=false,
                                 static_alloc=false,
                                 prefer_specsig=true)
-                                # raise_exception=hook_raise_exception)
 
     # generate IR
     ccall(:jl_set_standalone_aot_mode, Nothing, ())
@@ -33,10 +27,11 @@ function irgen(@nospecialize(f), @nospecialize(tt); dump = false)
         native_code = ccall(:jl_create_native, Ptr{Cvoid},
                             (Vector{Core.MethodInstance}, Base.CodegenParams), [linfo], params)
         @assert native_code != C_NULL
+        ccall(:jl_clear_standalone_aot_mode, Nothing, ())
         llvm_mod_ref = ccall(:jl_get_llvm_module, LLVM.API.LLVMModuleRef,
                              (Ptr{Cvoid},), native_code)
         @assert llvm_mod_ref != C_NULL
-        ccall(:jl_clear_standalone_aot_mode, Nothing, ())
+        # ccall(:jl_dump_native_lib, Nothing, (Ptr{Cvoid}, Cstring), native_code, filename)
     catch e
         ccall(:jl_clear_standalone_aot_mode, Nothing, ())
         println(e)
@@ -47,7 +42,8 @@ end
 macro c_str(s) unescape_string(replace(s, "\\" => "\\x")) end
 
 function test_read()
-    mini_sysimg = c"\16\88\C6\EB\12\09\00\00\00jkljkljkl\12\05\00\00\00qwery\12\0C\00\00\00asdfasdfasdf\04\07\14@\E6\01\1F\1C=\06\03\00\12\00\12\00\12\16\88\C2\EB\16\88\C2\EB\08\FF\FF\FF\FF"
+    # mini_sysimg = c"\16\88\C6\EB\12\09\00\00\00jkljkljkl\12\05\00\00\00qwery\12\0C\00\00\00asdfasdfasdf\04\07\14@\E6\01\1F\1C=\06\03\00\12\00\12\00\12\16\88\C2\EB\16\88\C2\EB\08\FF\FF\FF\FF"
+    mini_sysimg = c"\16\88\C7\EB\02\0Cjkljkljkljkl\02\08asdfasdf\12\09\00\00\00jkljkljkl\12\0C\00\00\00asdfasdfasdf\04\07\14@\E6\01\1F\1C=\06\04\00\12\00\02\00\02\00\12\16\88\C2\EB\16\88\C2\EB\16\88\C2\EB\FF\FF\FF\FF" 
     io = IOStream("iosmem")
     ccall(:ios_mem, Ptr{Cvoid}, (Ptr{UInt8}, UInt), io.ios, 0)
     write(io, mini_sysimg)
@@ -55,9 +51,14 @@ function test_read()
     ccall(:jl_restore_mini_sysimg, Any, (Ptr{Cvoid},), io)
 end
 
-rest = test_read()
+# @show rest = test_read()
 
 # Various tests
+
+Base.@ccallable Float64 f_2x(x) = 2x
+println("f_2x")
+m_2x = irgen(f_2x, Tuple{Float64}, "lib_2x.so")
+@show m_2x
 
 # f_ccall() = ccall("myfun", Int, ())
 # println("f_ccall")
@@ -75,12 +76,12 @@ rest = test_read()
 # println("f_Int")
 # m_Int = irgen(f_Int, Tuple{})
 
-# astr = "hellllllo world"
-# f_string() = "hellllllo world!"
-# @show pointer_from_objref(astr)
-# @show pointer_from_objref(String)
-# println("f_string")
-# m_string = irgen(f_string, Tuple{})
+astr = "hellllllo world"
+f_string() = "hellllllo world!"
+@show pointer_from_objref(astr)
+@show pointer_from_objref(String)
+println("f_string")
+@show m_string = irgen(f_string, Tuple{})
 
 # sv = Core.svec(1,2,3,4)
 # @show pointer_from_objref(sv)
@@ -122,8 +123,8 @@ rest = test_read()
 # m_arraysum = irgen(f_arraysum, Tuple{Int})
 
 # f_many() = ("jkljkljkl", :jkljkljkljkl, :asdfasdf, "asdfasdfasdf")
-# f_many() = (:jkljkljkljkl, :asdfasdf, :qwerty)
-# f_many() = ("jkljkljkl", "qwery", "asdfasdfasdf")
+# # f_many() = (:jkljkljkljkl, :asdfasdf, :qwerty)
+# # f_many() = ("jkljkljkl", "qwery", "asdfasdfasdf")
 # println("f_many")
 # m_many = irgen(f_many, Tuple{})
 

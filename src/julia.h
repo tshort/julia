@@ -1472,6 +1472,7 @@ typedef enum {
 #endif
 JL_DLLEXPORT void julia_init(JL_IMAGE_SEARCH rel);
 JL_DLLEXPORT void jl_init(void);
+JL_DLLEXPORT void jl_init_basics(void);
 JL_DLLEXPORT void jl_init_with_image(const char *julia_bindir,
                                      const char *image_relative_path);
 JL_DLLEXPORT const char *jl_get_default_sysimg_path(void);

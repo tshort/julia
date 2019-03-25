@@ -33,6 +33,18 @@
 #endif
 #endif
 
+// IR building
+#include <llvm/IR/IntrinsicInst.h>
+#include <llvm/Object/ObjectFile.h>
+#include <llvm/IR/DIBuilder.h>
+#include <llvm/AsmParser/Parser.h>
+#include <llvm/DebugInfo/DIContext.h>
+#include <llvm/IR/DerivedTypes.h>
+#include <llvm/IR/Intrinsics.h>
+#include <llvm/IR/Attributes.h>
+#include <llvm/IR/IRBuilder.h>
+#include <llvm/IR/MDBuilder.h>
+
 // for outputting assembly
 #include <llvm/Bitcode/BitcodeWriter.h>
 #include <llvm/Bitcode/BitcodeWriterPass.h>
@@ -186,12 +198,14 @@ static void emit_offset_table(Module &mod, const std::vector<GlobalValue*> &vars
 //     - Need to pass in the list of globals and record where these are stored
 //     - When restoring, need to use the storage locations to assign the proper pointers
 //   - Work out how to initialize type pointers
+//   - Equivalent of ccallable: get exported function name right
 extern "C" JL_DLLEXPORT
 void jl_emit_globals_table(void *native_code, jl_array_t *gvararray) {
 // void jl_emit_globals_table(void *native_code) {
     
     jl_native_code_desc_t *data = (jl_native_code_desc_t*)native_code;
     LLVMContext &Context = data->M->getContext();
+
     Type *T_size;
     if (sizeof(size_t) == 8)
         T_size = Type::getInt64Ty(Context);
@@ -221,7 +235,46 @@ void jl_emit_globals_table(void *native_code, jl_array_t *gvararray) {
                                  GlobalVariable::ExternalLinkage,
                                  len, "jl_system_image_size"));
     ios_close(f);
+
+    // add a function to initialize Julia types and globals
+        // Function template to create inside the module
+        
+        // void init_lib(void) {
+        //     jl_init_basics();
+        //     jl_restore_mini_sysimg(@jl_sysimg_gvars, @jl_system_image_data, @jl_system_image_size);
+        // }
+    Module *M = data->M.get();
+    Function* init_lib_f = cast<Function>(
+        M->getOrInsertFunction("init_lib", Type::getVoidTy(Context), NULL));
+    init_lib_f->setCallingConv(CallingConv::C);
+    BasicBlock* block = BasicBlock::Create(Context, "entry", init_lib_f);
+    IRBuilder<> builder(block);
+    // jl_init_basics call
+    FunctionType *FT = FunctionType::get(Type::getVoidTy(Context), false);
+    Function* jl_init_basics_f = Function::Create(FT, Function::ExternalLinkage, 
+                                                  "jl_init_basics", M);
+    builder.CreateCall(jl_init_basics_f, None);
+    // jl_restore_mini_sysimg call
+    std::vector<Type*> argtypes;
+    // argtypes.push_back(ArrayType::get(T_psize, jl_array_len(gvararray)));
+    // argtypes.push_back(dataarray->getType());
+    // argtypes.push_back(len->getType());
+    argtypes.push_back(M->getGlobalVariable("jl_sysimg_gvars")->getType());
+    argtypes.push_back(M->getGlobalVariable("jl_system_image_data")->getType());
+    argtypes.push_back(M->getGlobalVariable("jl_system_image_size")->getType());
+    FunctionType *FT2 = FunctionType::get(Type::getVoidTy(Context), argtypes, false);
+    Function* jl_restore_mini_sysimg_f = Function::Create(FT2, Function::ExternalLinkage, 
+                                                          "jl_restore_mini_sysimg", M);
+    std::vector<Value*> args;
+    args.push_back(M->getGlobalVariable("jl_sysimg_gvars"));
+    args.push_back(M->getGlobalVariable("jl_system_image_data"));
+    args.push_back(M->getGlobalVariable("jl_system_image_size"));
+    builder.CreateCall(jl_restore_mini_sysimg_f, args, None);
+
+    builder.CreateRetVoid();
+
 }
+
 
 static bool is_safe_char(unsigned char c)
 {
@@ -365,10 +418,12 @@ void *jl_create_native(jl_array_t *methods, const jl_cgparams_t cgparams)
         }
         else {
             data->jl_sysimg_fvars.push_back(cast<Function>(clone->getNamedValue(func)));
+        jl_printf(JL_STDERR," jcn func, %s\n", func);
             func_id = data->jl_sysimg_fvars.size();
         }
         if (!cfunc.empty() && jl_egal(this_li->rettype, rettype)) {
             data->jl_sysimg_fvars.push_back(cast<Function>(clone->getNamedValue(cfunc)));
+        jl_printf(JL_STDERR," jcn cfunc, %s\n", cfunc);
             cfunc_id = data->jl_sysimg_fvars.size();
         }
         data->jl_fvar_map[this_li] = std::make_tuple(func_id, cfunc_id);
@@ -586,6 +641,82 @@ void jl_dump_native(void *native_code,
         handleAllErrors(writeArchive(obj_fname, obj_Archive, true,
                     Kind, true, false), reportWriterError);
 
+    delete data;
+}
+
+extern "C" JL_DLLEXPORT
+void jl_dump_native_lib(void *native_code, const char *obj_fname)
+{
+    JL_TIMING(NATIVE_DUMP);
+    jl_native_code_desc_t *data = (jl_native_code_desc_t*)native_code;
+    LLVMContext &Context = data->M->getContext();
+    // We don't want to use MCJIT's target machine because
+    // it uses the large code model and we may potentially
+    // want less optimizations there.
+    Triple TheTriple = Triple(jl_TargetMachine->getTargetTriple());
+    // make sure to emit the native object format, even if FORCE_ELF was set in codegen
+#if defined(_OS_WINDOWS_)
+    TheTriple.setObjectFormat(Triple::COFF);
+#elif defined(_OS_DARWIN_)
+    TheTriple.setObjectFormat(Triple::MachO);
+    TheTriple.setOS(llvm::Triple::MacOSX);
+#endif
+    std::unique_ptr<TargetMachine> TM(
+        jl_TargetMachine->getTarget().createTargetMachine(
+            TheTriple.getTriple(),
+            jl_TargetMachine->getTargetCPU(),
+            jl_TargetMachine->getTargetFeatureString(),
+            jl_TargetMachine->Options,
+#if defined(_OS_LINUX_) || defined(_OS_FREEBSD_)
+            Reloc::PIC_,
+#else
+            Optional<Reloc::Model>(),
+#endif
+#if defined(_CPU_PPC_) || defined(_CPU_PPC64_)
+            // On PPC the small model is limited to 16bit offsets
+            CodeModel::Medium,
+#else
+            // Use small model so that we can use signed 32bits offset in the function and GV tables
+            CodeModel::Small,
+#endif
+            CodeGenOpt::Aggressive // -O3 TODO: respect command -O0 flag?
+            ));
+
+    legacy::PassManager PM;
+    addTargetPasses(&PM, TM.get());
+
+    // set up optimization passes
+    SmallVector<char, 128> obj_Buffer;
+    raw_svector_ostream obj_OS(obj_Buffer);
+    std::vector<NewArchiveMember> obj_Archive;
+    std::vector<std::string> outputs;
+
+    addOptimizationPasses(&PM, jl_options.opt_level, false);
+    if (TM->addPassesToEmitFile(PM, obj_OS, TargetMachine::CGFT_ObjectFile, false))
+        jl_safe_printf("ERROR: target does not support generation of object files\n");
+
+    // Reset the target triple to make sure it matches the new target machine
+    data->M->setTargetTriple(TM->getTargetTriple().str());
+    DataLayout DL = TM->createDataLayout();
+    DL.reset(DL.getStringRepresentation() + "-ni:10:11:12:13");
+    data->M->setDataLayout(DL);
+    Type *T_size;
+    if (sizeof(size_t) == 8)
+        T_size = Type::getInt64Ty(Context);
+    else
+        T_size = Type::getInt32Ty(Context);
+    Type *T_psize = T_size->getPointerTo();
+
+    PM.run(*data->M);
+
+    outputs.push_back({ obj_Buffer.data(), obj_Buffer.size() });
+    obj_Archive.push_back(NewArchiveMember(MemoryBufferRef(outputs.back(), "img.o")));
+    obj_Buffer.clear();
+
+    object::Archive::Kind Kind = getDefaultForHost(TheTriple);
+    handleAllErrors(writeArchive(obj_fname, obj_Archive, true,
+                    Kind, true, false), reportWriterError);
+    data->M.reset(); // free memory for data->M
     delete data;
 }
 
