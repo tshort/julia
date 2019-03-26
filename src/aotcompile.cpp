@@ -453,7 +453,10 @@ void *jl_create_native(jl_array_t *methods, const jl_cgparams_t cgparams)
     // (before adding the exported headers)
     for (GlobalObject &G : clone->global_objects()) {
         if (!G.isDeclaration()) {
+            jl_printf(JL_STDERR," -- ref jcn global objects, %s\n", G.getName());
             G.setLinkage(Function::InternalLinkage);
+            if (standalone_aot_mode)     // TODO: find a better way to do this
+                G.setLinkage(Function::ExternalLinkage);
             makeSafeName(G);
             addComdat(&G);
 #if defined(_OS_WINDOWS_) && defined(_CPU_X86_64_)
@@ -687,10 +690,12 @@ void jl_dump_native_lib(void *native_code, const char *obj_fname)
 
     // set up optimization passes
     SmallVector<char, 128> obj_Buffer;
-    raw_svector_ostream obj_OS(obj_Buffer);
-    std::vector<NewArchiveMember> obj_Archive;
-    std::vector<std::string> outputs;
-
+    std::error_code EC;
+    raw_fd_ostream obj_OS(obj_fname, EC, sys::fs::F_None);
+    if (EC) {
+      errs() << "Could not open file: " << EC.message();
+      return;
+    }
     addOptimizationPasses(&PM, jl_options.opt_level, false);
     if (TM->addPassesToEmitFile(PM, obj_OS, TargetMachine::CGFT_ObjectFile, false))
         jl_safe_printf("ERROR: target does not support generation of object files\n");
@@ -709,13 +714,8 @@ void jl_dump_native_lib(void *native_code, const char *obj_fname)
 
     PM.run(*data->M);
 
-    outputs.push_back({ obj_Buffer.data(), obj_Buffer.size() });
-    obj_Archive.push_back(NewArchiveMember(MemoryBufferRef(outputs.back(), "img.o")));
-    obj_Buffer.clear();
+    obj_OS.flush();
 
-    object::Archive::Kind Kind = getDefaultForHost(TheTriple);
-    handleAllErrors(writeArchive(obj_fname, obj_Archive, true,
-                    Kind, true, false), reportWriterError);
     data->M.reset(); // free memory for data->M
     delete data;
 }

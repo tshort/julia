@@ -3,7 +3,7 @@
 module X
 import LLVM
 
-function irgen(@nospecialize(f), @nospecialize(tt), filename = "test.so")
+function irgen(@nospecialize(f), @nospecialize(tt), filename = "")
     # get the method instance
     world = typemax(UInt)
     meth = which(f, tt)
@@ -28,10 +28,13 @@ function irgen(@nospecialize(f), @nospecialize(tt), filename = "test.so")
                             (Vector{Core.MethodInstance}, Base.CodegenParams), [linfo], params)
         @assert native_code != C_NULL
         ccall(:jl_clear_standalone_aot_mode, Nothing, ())
+        if filename != ""
+            ccall(:jl_dump_native_lib, Nothing, (Ptr{Cvoid}, Cstring), native_code, filename)
+            return
+        end
         llvm_mod_ref = ccall(:jl_get_llvm_module, LLVM.API.LLVMModuleRef,
                              (Ptr{Cvoid},), native_code)
         @assert llvm_mod_ref != C_NULL
-        # ccall(:jl_dump_native_lib, Nothing, (Ptr{Cvoid}, Cstring), native_code, filename)
     catch e
         ccall(:jl_clear_standalone_aot_mode, Nothing, ())
         println(e)
@@ -55,10 +58,10 @@ end
 
 # Various tests
 
-Base.@ccallable Float64 f_2x(x) = 2x
-println("f_2x")
-m_2x = irgen(f_2x, Tuple{Float64}, "lib_2x.so")
-@show m_2x
+# Base.@ccallable Float64 f_2x(x) = 2x
+# f_2x(x) = 2x
+# println("f_2x")
+# m_2x = irgen(f_2x, Tuple{Float64}, "lib2x.o")
 
 # f_ccall() = ccall("myfun", Int, ())
 # println("f_ccall")
@@ -76,12 +79,14 @@ m_2x = irgen(f_2x, Tuple{Float64}, "lib_2x.so")
 # println("f_Int")
 # m_Int = irgen(f_Int, Tuple{})
 
-astr = "hellllllo world"
-f_string() = "hellllllo world!"
-@show pointer_from_objref(astr)
-@show pointer_from_objref(String)
-println("f_string")
-@show m_string = irgen(f_string, Tuple{})
+# f_string() = "hellllllo world!"
+# println("f_string")
+# @show m_string = irgen(f_string, Tuple{})
+# m_string = irgen(f_string, Tuple{}, "libstring.o")
+# run(`clang -shared -fpic libstring.o -o libstring.so`)
+# println("after f_string")
+# ccall((:init_lib, "/home/tshort/jn-codegen/src/libstring.so"), Cvoid, ()) 
+# ccall((:julia_f_string_170, "/home/tshort/jn-codegen/src/libstring.so"), Cvoid, ()) 
 
 # sv = Core.svec(1,2,3,4)
 # @show pointer_from_objref(sv)
@@ -122,11 +127,12 @@ println("f_string")
 # println("f_arraysum")
 # m_arraysum = irgen(f_arraysum, Tuple{Int})
 
-# f_many() = ("jkljkljkl", :jkljkljkljkl, :asdfasdf, "asdfasdfasdf")
-# # f_many() = (:jkljkljkljkl, :asdfasdf, :qwerty)
-# # f_many() = ("jkljkljkl", "qwery", "asdfasdfasdf")
-# println("f_many")
-# m_many = irgen(f_many, Tuple{})
+f_many() = ("jkljkljkl", :jkljkljkljkl, :asdfasdf, "asdfasdfasdf")
+# f_many() = (:jkljkljkljkl, :asdfasdf, :qwerty)
+# f_many() = ("jkljkljkl", "qwery", "asdfasdfasdf")
+println("f_many")
+m_many = irgen(f_many, Tuple{}, "libmany.o")
+run(`clang -shared -fpic libmany.o -o libmany.so`)
 
 
 

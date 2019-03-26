@@ -3274,7 +3274,7 @@ JL_DLLEXPORT jl_value_t *jl_restore_incremental(const char *fname, jl_array_t *m
 
 // JL_DLLEXPORT jl_value_t *jl_restore_mini_sysimg(ios_t *f)
 //     jl_restore_mini_sysimg(@jl_sysimg_gvars, @jl_system_image_data, @jl_system_image_size);
-JL_DLLEXPORT jl_value_t *jl_restore_mini_sysimg(void *jl_sysimg_gvars, void *jl_system_image_data, size_t *jl_system_image_size)
+JL_DLLEXPORT void jl_restore_mini_sysimg(void *jl_sysimg_gvars, void *jl_system_image_data, size_t *jl_system_image_size)
 {
     JL_TIMING(LOAD_MODULE);
     jl_ptls_t ptls = jl_get_ptls_states();
@@ -3284,11 +3284,11 @@ JL_DLLEXPORT jl_value_t *jl_restore_mini_sysimg(void *jl_sysimg_gvars, void *jl_
     ios_write(&f, jl_system_image_data, *jl_system_image_size);
     ios_seek(&f, 0);
 
-    jl_bigint_type = jl_base_module ? jl_get_global(jl_base_module, jl_symbol("BigInt")) : NULL;
-    if (jl_bigint_type) {
-        gmp_limb_size = jl_unbox_long(jl_get_global((jl_module_t*)jl_get_global(jl_base_module, jl_symbol("GMP")),
-                                                    jl_symbol("BITS_PER_LIMB"))) / 8;
-    }
+    // jl_bigint_type = jl_base_module ? jl_get_global(jl_base_module, jl_symbol("BigInt")) : NULL;
+    // if (jl_bigint_type) {
+    //     gmp_limb_size = jl_unbox_long(jl_get_global((jl_module_t*)jl_get_global(jl_base_module, jl_symbol("GMP")),
+    //                                                 jl_symbol("BITS_PER_LIMB"))) / 8;
+    // }
 
     // list of world counters of incremental dependencies
     arraylist_t dependent_worlds;
@@ -3332,7 +3332,7 @@ JL_DLLEXPORT jl_value_t *jl_restore_mini_sysimg(void *jl_sysimg_gvars, void *jl_
     // jl_recache_other(&dependent_worlds); // make all of the other objects identities correct (needs to be after insert methods)
     // jl_array_t *init_order = jl_finalize_deserializer(&s, tracee_list); // done with f and s (needs to be after recache)
 
-    // JL_GC_PUSH3(&init_order, &restored, &external_backedges);
+    JL_GC_PUSH1(&restored);
     jl_gc_enable(en); // subtyping can allocate a lot, not valid before recache-other
 
     // jl_insert_backedges((jl_array_t*)external_backedges, &dependent_worlds); // restore external backedges (needs to be last)
@@ -3345,22 +3345,14 @@ JL_DLLEXPORT jl_value_t *jl_restore_mini_sysimg(void *jl_sysimg_gvars, void *jl_
     
     // restore pointers to global variables
     for (size_t i = 0, l = jl_array_len(restored); i < l; i++) {
-        ((size_t*)jl_sysimg_gvars)[i] = jl_array_ptr_ref(restored, i);
+        *(size_t*)((size_t*)jl_sysimg_gvars)[i] = jl_array_ptr_ref(restored, i);
     }
-// STATIC_INLINE jl_value_t *jl_array_ptr_ref(void *a JL_PROPAGATES_ROOT, size_t i) JL_NOTSAFEPOINT;
-// static inline uintptr_t *sysimg_gvars(uintptr_t *base, size_t idx)
-// {
-//     return base + sysimg_gvars_offsets[idx] / sizeof(base[0]);
-// }
-// static uintptr_t *sysimg_gvars_base = NULL;
-//             uintptr_t v = get_item_for_reloc(s, base, size, offset);
-//             *sysimg_gvars(sysimg_gvars_base, gvname_index) = v;
 
     jl_gc_enable_finalizers(ptls, 1); // make sure we don't run any Julia code concurrently before this point
+    jl_printf(JL_STDERR, " jl_restore_mini_sysimg: after finalizers\n");
 
     JL_GC_POP();
-    return restored;
-    // return (jl_value_t*)ret;
+    jl_printf(JL_STDERR, " done with jl_restore_mini_sysimg\n");
 }
 
 // --- init ---
@@ -3477,10 +3469,18 @@ void jl_init_serializer(void)
 }
 
 JL_DLLEXPORT void jl_init_basics(void) {
+    return;
     jl_gc_init();
     jl_gc_enable(0);
     jl_init_types();
     jl_init_serializer();
+//         jl_core_module = jl_new_module(jl_symbol("Core"));
+//         jl_type_typename->mt->module = jl_core_module;
+//         jl_top_module = jl_core_module;
+//         jl_init_intrinsic_functions();
+//         jl_init_primitives();
+//         jl_get_builtins();
+//         jl_init_main_module();
 }
 
 #ifdef __cplusplus
