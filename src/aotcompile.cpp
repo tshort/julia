@@ -192,13 +192,16 @@ static void emit_offset_table(Module &mod, const std::vector<GlobalValue*> &vars
 //   x Try using machinery in dump.c
 //   x Need to write new save; skip writing modules
 //   x Work out how to determine internal vs. external globals
-//   - Compile IR to a native dynamic library
+//   x Compile IR to a native object file
 //   - Don't export intrinsics as globals
-//   - Write code to read the mini sysimage
-//     - Need to pass in the list of globals and record where these are stored
-//     - When restoring, need to use the storage locations to assign the proper pointers
+//   x Write code to read the mini sysimage
+//     x Need to pass in the list of globals and record where these are stored
+//     x When restoring, need to use the storage locations to assign the proper pointers
 //   - Work out how to initialize type pointers
 //   - Equivalent of ccallable: get exported function name right
+//   - Work out initialization and calls from other code
+//     - What about multiple library invocations?
+//   - Work out stdin, stdout, etc.
 extern "C" JL_DLLEXPORT
 void jl_emit_globals_table(void *native_code, jl_array_t *gvararray) {
 // void jl_emit_globals_table(void *native_code) {
