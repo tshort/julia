@@ -8,7 +8,7 @@ using .IRGen
 # twox(x) = 2x
 # @show irgen(twox, Tuple{Int})
 # irgen(twox, Tuple{Int}, "libtwox.o")
-# @show @jlrun twox 5.0
+# @show jlrun(twox, 5)
 # m_2x = irgen(twox, Tuple{Float64}, "lib2x.o")
 
 # f_ccall() = ccall("myfun", Int, ())
@@ -85,8 +85,8 @@ using .IRGen
 # run(`clang -shared -fpic libarraysum.o -o libarraysum.so`)
 
 arraysum(x) = sum([x, 1])
-# @show macroexpand(Main, :(@jlrun arraysum(3)))
-@show z = jlrun(arraysum, 3)
+@show macroexpand(Main, :(@jlrun arraysum(3)))
+@show z = @jlrun arraysum(3)
 
 # fsin(x) = sin(x)
 # @show irgen(fsin, Tuple{Float64})
