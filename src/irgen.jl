@@ -44,7 +44,7 @@ end
 
 macro c_str(s) unescape_string(replace(s, "\\" => "\\x")) end
 
-function test_read()
+function test_read()    ## OUT OF DATE!
     # mini_sysimg = c"\16\88\C6\EB\12\09\00\00\00jkljkljkl\12\05\00\00\00qwery\12\0C\00\00\00asdfasdfasdf\04\07\14@\E6\01\1F\1C=\06\03\00\12\00\12\00\12\16\88\C2\EB\16\88\C2\EB\08\FF\FF\FF\FF"
     mini_sysimg = c"\16\88\C7\EB\02\0Cjkljkljkljkl\02\08asdfasdf\12\09\00\00\00jkljkljkl\12\0C\00\00\00asdfasdfasdf\04\07\14@\E6\01\1F\1C=\06\04\00\12\00\02\00\02\00\12\16\88\C2\EB\16\88\C2\EB\16\88\C2\EB\FF\FF\FF\FF" 
     io = IOStream("iosmem")
@@ -53,15 +53,35 @@ function test_read()
     seekstart(io)
     ccall(:jl_restore_mini_sysimg, Any, (Ptr{Cvoid},), io)
 end
-
 # @show rest = test_read()
+
+export @jlrun
+macro jlrun(fun, args...)
+    _jlrun(fun, args...)
+end
+function _jlrun(fun, args...)
+    efun = esc(fun)
+    eargs = args
+    tt = Tuple{(typeof(eval(a)) for a in eargs)...}
+    rettype = code_typed(eval(fun), tt)[1][2]
+    funname = string(fun)
+    quote
+        irgen($efun, $tt, $(string("lib", funname, ".o")))
+        run($(`clang -shared -fpic lib$fun.o -o lib$fun.so -L/home/tshort/jn-codegen/usr/lib -ljulia-debug`))
+        ccall((:init_lib, $(string("/home/tshort/jn-codegen/src/lib", fun, ".so"))), Cvoid, ()) 
+        ccall(($(Meta.quot(fun)), $(string("/home/tshort/jn-codegen/src/lib", fun, ".so"))), 
+              $rettype, ($((typeof(eval(a)) for a in eargs)...),), $(eargs...))
+    end
+end
 
 # Various tests
 
 # Base.@ccallable Float64 f_2x(x) = 2x
-# f_2x(x) = 2x
-# println("f_2x")
-# m_2x = irgen(f_2x, Tuple{Float64}, "lib2x.o")
+twox(x) = 2x
+# @show irgen(twox, Tuple{Int})
+# irgen(twox, Tuple{Int}, "libtwox.o")
+@show @jlrun twox 5.0
+# m_2x = irgen(twox, Tuple{Float64}, "lib2x.o")
 
 # f_ccall() = ccall("myfun", Int, ())
 # println("f_ccall")
@@ -75,17 +95,25 @@ end
 # println("f_cglobal2")
 # m_cglobal2 = irgen(f_cglobal2, Tuple{})
 
-# f_Int() = UInt32
+# f_Int(x) = UInt32
+# @show @jlrun f_Int 1
 # println("f_Int")
 # m_Int = irgen(f_Int, Tuple{})
 
+# f_arr(x) = Array{UInt32,1}
+# @show @jlrun f_arr 1
+# println("f_Int")
+# m_Int = irgen(f_Int, Tuple{})
+
+# hello() = "hellllllo world!"
+# @show @jlrun hello
 # f_string() = "hellllllo world!"
 # println("f_string")
 # @show m_string = irgen(f_string, Tuple{})
 # m_string = irgen(f_string, Tuple{}, "libstring.o")
 # run(`clang -shared -fpic libstring.o -o libstring.so`)
 # println("after f_string")
-# ccall((:init_lib, "/home/tshort/jn-codegen/src/libstring.so"), Cvoid, ()) 
+# ccall(( :init_lib, "/home/tshort/jn-codegen/src/libstring.so"), Cvoid, ()) 
 # ccall((:julia_f_string_170, "/home/tshort/jn-codegen/src/libstring.so"), Cvoid, ()) 
 
 # sv = Core.svec(1,2,3,4)
@@ -97,7 +125,9 @@ end
 # arr = [9,9,9,9]
 # @show pointer_from_objref(arr)
 # @show pointer_from_objref(Array{Int,1})
-# f_array() = arr
+# f_array(x) = arr
+# sum(@jlrun f_array 5)
+# @show f_array(5)
 # println("f_array")
 # m_array = irgen(f_array, Tuple{})
 
@@ -107,11 +137,16 @@ end
 # end
 
 # f_Atype() = AaaaaA
-# println("f_Atype")
 # m_Atype = irgen(f_Atype, Tuple{}, dump = false)
 
-# @noinline f_A() = AaaaaA(1, 2.2)
-# @noinline f_A2(x) = x.a > 2 ? 2*x.b : x.b
+# A = AaaaaA(1, 2.2)
+# A2(x) = x.a > 2 ? 2*x.b : x.b
+# @show macroexpand(X, :(@jlrun A2 A))
+# @show m_A2 = irgen(A2, Tuple{AaaaaA})
+# z = @jlrun A2 A
+# ccall((:init_lib, "/home/tshort/jn-codegen/src/libA2.so"), Cvoid, ()) 
+# ccall((:A2, "/home/tshort/jn-codegen/src/libA2.so"), Float64, (AaaaaA,), A) 
+
 # println("f_A")
 # m_A = irgen(f_A, Tuple{})
 # m_A2 = irgen(f_A2, Tuple{AaaaaA})
@@ -125,14 +160,35 @@ end
 
 # f_arraysum(x) = sum([x, 1])
 # println("f_arraysum")
-# m_arraysum = irgen(f_arraysum, Tuple{Int})
+# @show m_arraysum = irgen(f_arraysum, Tuple{Int})
+# m_arraysum = irgen(f_arraysum, Tuple{Int}, "libarraysum.o")
+# run(`clang -shared -fpic libarraysum.o -o libarraysum.so`)
+# ccall((:init_lib, "/home/tshort/jn-codegen/src/libarraysum.so"), Cvoid, ()) 
+# ccall((:f_arraysum, "/home/tshort/jn-codegen/src/libarraysum.so"), Int, (Int,), 6) 
 
-f_many() = ("jkljkljkl", :jkljkljkljkl, :asdfasdf, "asdfasdfasdf")
-# f_many() = (:jkljkljkljkl, :asdfasdf, :qwerty)
-# f_many() = ("jkljkljkl", "qwery", "asdfasdfasdf")
-println("f_many")
-m_many = irgen(f_many, Tuple{}, "libmany.o")
-run(`clang -shared -fpic libmany.o -o libmany.so`)
+arraysum(x) = sum([x, 1])
+# @show macroexpand(X, :(@jlrun arraysum 3))
+@show z = @jlrun arraysum 3
+
+# fsin(x) = sin(x)
+# @show irgen(fsin, Tuple{Float64})
+# @show z = @jlrun fsin 0.5
+# @show ccall((:fsin, "/home/tshort/jn-codegen/src/libsin.so"), Float64, (Float64,), 0.5)
+
+# f_helloworld() = println("hello world")
+# f_helloworld() = write(stdout, "hello world\n")
+# @show m_helloworld = irgen(f_helloworld, Tuple{})
+# m_helloworld = irgen(f_helloworld, Tuple{}, "libhelloworld.o")
+# run(`clang -shared -fpic libhelloworld.o -o libhelloworld.so`)
+# ccall((:init_lib, "/home/tshort/jn-codegen/src/libhelloworld.so"), Cvoid, ()) 
+# @show ccall((:julia_f_helloworld_149, "/home/tshort/jn-codegen/src/libhelloworld.so"), Cvoid, ())
+
+# f_many() = ("jkljkljkl", :jkljkljkljkl, :asdfasdf, "asdfasdfasdf")
+# # f_many() = (:jkljkljkljkl, :asdfasdf, :qwerty)
+# # f_many() = ("jkljkljkl", "qwery", "asdfasdfasdf")
+# println("f_many")
+# m_many = irgen(f_many, Tuple{}, "libmany.o")
+# run(`clang -shared -fpic libmany.o -o libmany.so`)
 
 
 

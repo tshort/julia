@@ -3469,7 +3469,10 @@ void jl_init_serializer(void)
 }
 
 JL_DLLEXPORT void jl_init_basics(void) {
+    jl_init();
     return;
+    // return;
+    jl_gc_init();
     jl_gc_init();
     jl_gc_enable(0);
     jl_init_types();

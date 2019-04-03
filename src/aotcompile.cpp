@@ -186,22 +186,7 @@ static void emit_offset_table(Module &mod, const std::vector<GlobalValue*> &vars
 }
 
 // Export a globals table and a mini sysimage with strings, symbols, and other global data.
-// Next steps:
-//   x Better explore layout of Julia data
-//   x Dump a simple module and look at results
-//   x Try using machinery in dump.c
-//   x Need to write new save; skip writing modules
-//   x Work out how to determine internal vs. external globals
-//   x Compile IR to a native object file
-//   - Don't export intrinsics as globals
-//   x Write code to read the mini sysimage
-//     x Need to pass in the list of globals and record where these are stored
-//     x When restoring, need to use the storage locations to assign the proper pointers
-//   - Work out how to initialize type pointers
-//   - Equivalent of ccallable: get exported function name right
-//   - Work out initialization and calls from other code
-//     - What about multiple library invocations?
-//   - Work out stdin, stdout, etc.
+
 extern "C" JL_DLLEXPORT
 void jl_emit_globals_table(void *native_code, jl_array_t *gvararray) {
 // void jl_emit_globals_table(void *native_code) {
@@ -339,6 +324,10 @@ static void makeSafeName(GlobalObject &G)
         G.setName(StringRef(SafeName.data(), SafeName.size()));
 }
 
+bool isinlibjulia(std::string name) {
+    std::vector<std::string> array {"Xjl_int64_type", "Xjl_boundserror_type"};
+    return std::find(array.begin(), array.end(), name) != array.end();
+}
 
 // takes the running content that has collected in the shadow module and dump it to disk
 // this builds the object file portion of the sysimage files for fast startup
@@ -404,6 +393,7 @@ void *jl_create_native(jl_array_t *methods, const jl_cgparams_t cgparams)
     // while examining and recording what kind of function pointer we have
     ValueToValueMapTy VMap;
     std::unique_ptr<Module> clone(CloneModule(shadow_output, VMap));
+    std::map<std::string, std::string> fun_table;
     for (auto &def : emitted) {
         jl_merge_module(clone.get(), std::move(std::get<0>(def.second)));
         jl_method_instance_t *this_li = def.first;
@@ -411,6 +401,7 @@ void *jl_create_native(jl_array_t *methods, const jl_cgparams_t cgparams)
         jl_value_t *rettype = std::get<2>(def.second);
         StringRef func = decls.functionObject;
         StringRef cfunc = decls.specFunctionObject;
+        fun_table[cfunc] = jl_symbol_name(def.first->def.method->name);
         uint32_t func_id = 0;
         uint32_t cfunc_id = 0;
         if (func == "jl_fptr_args") {
@@ -437,9 +428,11 @@ void *jl_create_native(jl_array_t *methods, const jl_cgparams_t cgparams)
     for (auto &global : gvars) {
         jl_printf(JL_STDERR," -- ref jcn global, %s\n", global.c_str());
         GlobalVariable *G = cast<GlobalVariable>(clone->getNamedValue(global));
-        G->setInitializer(ConstantPointerNull::get(cast<PointerType>(G->getValueType())));
-        G->setLinkage(GlobalVariable::InternalLinkage);
-        data->jl_sysimg_gvars.push_back(G);
+        if (!isinlibjulia(global)) {
+            G->setInitializer(ConstantPointerNull::get(cast<PointerType>(G->getValueType())));
+            G->setLinkage(GlobalVariable::InternalLinkage);
+            data->jl_sysimg_gvars.push_back(G);
+        }
     }
 
 #if defined(_OS_WINDOWS_) && defined(_CPU_X86_64_)
@@ -474,7 +467,12 @@ void *jl_create_native(jl_array_t *methods, const jl_cgparams_t cgparams)
     
     jl_emit_globals_table((void*)data, gvararray);
     // jl_emit_globals_table((void*)data);
-
+    if (standalone_aot_mode) {
+        for (auto &tbl : fun_table) {
+            jl_printf(JL_STDERR," -- ref jcn rename from %s to %s\n", tbl.first.c_str(), tbl.second.c_str());
+            cast<Function>(data->M->getNamedValue(tbl.first))->setName(tbl.second);
+        }
+    }
     JL_UNLOCK(&codegen_lock); // Might GC
     return (void*)data;
 }
