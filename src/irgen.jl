@@ -77,10 +77,10 @@ end
 # Various tests
 
 # Base.@ccallable Float64 f_2x(x) = 2x
-twox(x) = 2x
+# twox(x) = 2x
 # @show irgen(twox, Tuple{Int})
 # irgen(twox, Tuple{Int}, "libtwox.o")
-@show @jlrun twox 5.0
+# @show @jlrun twox 5.1
 # m_2x = irgen(twox, Tuple{Float64}, "lib2x.o")
 
 # f_ccall() = ccall("myfun", Int, ())
@@ -168,7 +168,7 @@ twox(x) = 2x
 
 arraysum(x) = sum([x, 1])
 # @show macroexpand(X, :(@jlrun arraysum 3))
-@show z = @jlrun arraysum 3
+@show @jlrun arraysum 3
 
 # fsin(x) = sin(x)
 # @show irgen(fsin, Tuple{Float64})

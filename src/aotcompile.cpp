@@ -431,8 +431,8 @@ void *jl_create_native(jl_array_t *methods, const jl_cgparams_t cgparams)
         if (!isinlibjulia(global)) {
             G->setInitializer(ConstantPointerNull::get(cast<PointerType>(G->getValueType())));
             G->setLinkage(GlobalVariable::InternalLinkage);
-            data->jl_sysimg_gvars.push_back(G);
         }
+        data->jl_sysimg_gvars.push_back(G);
     }
 
 #if defined(_OS_WINDOWS_) && defined(_CPU_X86_64_)
