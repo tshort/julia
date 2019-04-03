@@ -325,7 +325,7 @@ static void makeSafeName(GlobalObject &G)
 }
 
 bool isinlibjulia(std::string name) {
-    std::vector<std::string> array {"Xjl_int64_type", "Xjl_boundserror_type"};
+    std::vector<std::string> array {"jl_int64_type", "jl_boundserror_type"};
     return std::find(array.begin(), array.end(), name) != array.end();
 }
 
