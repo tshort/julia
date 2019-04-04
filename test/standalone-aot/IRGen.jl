@@ -2,7 +2,7 @@ module IRGen
 
 import Libdl
 
-export irgen, dumpnative, @jlrun
+export irgen, dump_native, @jlrun
 
 struct LLVMNativeCode    # thin wrapper
     p::Ptr{Cvoid}
@@ -69,10 +69,10 @@ macro jlrun(e)
     quote
         native = irgen($efun, $tt)
         dump_native(native, $libpath)
-        run($(`clang -shared -fpic $libpath -o $dylibpath -L$pkgdir/../../usr/lib -ljulia-debug`))
-        sleep(2)
-        ccall((:init_lib, $dylibpath), Cvoid, ()) 
-        ccall(($(Meta.quot(fun)), $dylibpath), 
+        run($(`clang -shared -fpic $libpath -o $dylibpath -L$pkgdir/../../usr/lib -ljulia-debug`), wait = true)
+        dylib = Libdl.dlopen($dylibpath)
+        ccall(Libdl.dlsym(dylib, "init_lib"), Cvoid, ()) 
+        ccall(Libdl.dlsym(dylib, $(Meta.quot(fun))),
               $rettype, ($((typeof(eval(a)) for a in args)...),), $(args...))
     end
 end

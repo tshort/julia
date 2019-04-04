@@ -5,28 +5,26 @@ using Test
 
 # Various tests
 
-# twox(x) = 2x
-# @test twox(10) == @jlrun twox(10)
+twox(x) = 2x
+@test twox(10) == @jlrun twox(10)
 
-# hello() = "hellllllo world!"
-# @test hello() == @jlrun hello()
+hello() = "hellllllo world!"
+@test hello() == @jlrun hello()
 
-# fint() = UInt32
-# @test fint() == @jlrun fint()
+fint() = UInt32
+@test fint() == @jlrun fint()
 
-# const a = Ref(0x80808080)
-# jglobal() = a[]
-# @test jglobal()[] == (@jlrun jglobal())[]
+const a = Ref(0x80808080)
+jglobal() = a[]
+@test jglobal()[] == (@jlrun jglobal())[]
 
-# arraysum(x) = sum([x, 1])
-# @test arraysum(6) == @jlrun arraysum(6)
+arraysum(x) = sum([x, 1])
+@test arraysum(6) == @jlrun arraysum(6)
 
-# fsin(x) = sin(x)
-# @test fsin(0.5) == @jlrun fsin(0.5)
+fsin(x) = sin(x)
+@test fsin(0.5) == @jlrun fsin(0.5)
 
 fccall() = ccall(:jl_ver_major, Cint, ())
-@show fccall()
-@show @jlrun fccall()
 @test fccall() == @jlrun fccall()
 
 # f_cglobal() = cglobal("myglobal", Int)
