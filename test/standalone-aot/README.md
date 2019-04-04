@@ -48,6 +48,19 @@ int main(int argc, char *argv[])
 It also may fail if `jl_init` relies on having the sysimg.
 Beyond that, we may not want all of what `jl_init` does for some use cases.
 
+## Test implementation
+
+The `test/standalone-aot` directory contains tests/examples. `runtests.jl` runs tests.
+`IRGen.jl` has code to generate standalone libraries. The main routines are:
+
+* `native = irgen(f, argtypes)` -- Return a native-code representation of function `f`
+  with Tuple types `argtypes`.
+* `dump_native(native, filename)` -- Dump `native` to the `.o` object file.
+* `@jlrun f(args...)` -- Compile `f` to a dynamic library and call it with `ccall`. 
+  Uses `clang` to compile the `.o` file to a `.so` shared library (hardcoded for
+  Linux for now).
+
+
 ## Current status
 
 The code can handle `ccall` and `cglobal`. There's working code for serialization and 
@@ -66,8 +79,6 @@ Right now, the testing code just targets Linux.
 
 ## Next steps
 
-- Clean out printf's and other debugging junk.
-- Rework the `jlrun` macro.
 - Move examples to test/something; maybe try Makefiles.
 - Continue to work on initialization.
 - Fix exporting, so only the methods passed to `create_native` get exported.

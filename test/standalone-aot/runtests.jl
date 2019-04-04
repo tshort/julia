@@ -42,17 +42,17 @@ ccall((:init_lib, "./libmany.so"), Cvoid, ())
 
 
 #################################################
-## BROKEN
+## BROKEN functions
 #################################################
 
 
 sv = Core.svec(1,2,3,4)
-f_sv() = sv
-@show @jlrun f_sv()  # Returns 1 (wrong)
+fsv() = sv
+@show @jlrun fsv()  # Returns 1 (wrong)
 
 arr = [9,9,9,9]
-f_array() = arr
-# @show @jlrun f_array()
+farray() = arr
+# @show @jlrun farray()
 
 struct AaaaaA
     a::Int
@@ -60,7 +60,7 @@ struct AaaaaA
 end
 
 A = AaaaaA(1, 2.2)
-A2(x) = x.a > 2 ? 2*x.b : x.b
-# @show z = @jlrun A2(A)
+fA(x) = x.a > 2 ? 2*x.b : x.b
+# @show z = @jlrun fA(A)
 
 
