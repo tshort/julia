@@ -52,36 +52,25 @@ dump_native(x::LLVMNativeCode, filename) =
 """
 Compiles function call provided and calls it with `ccall` using the shared library that was created.
 """
-# function jlrun(f, args...)
-#     @show Tuple{typeof.(args)...}
-#     @show(nameof(f))
-#     native = irgen(f, Tuple{typeof.(args)...})
-#     libname = string("lib", nameof(f), ".o")
-#     soname = string("lib", nameof(f), ".so")
-#     pkgdir = @__DIR__
-#     localdir = pwd()
-#     dump_native(native, libname)
-#     run(`clang -shared -fPIC $libname -o $soname -L$pkgdir/../../usr/lib`)
-#     so = Libdl.dlopen(abspath(soname))
-#     ccall((:init_lib, so), Cvoid, ()) 
-#     ccall((:arraysum, "/home/tshort/jn-codegen/libarraysum.so"), Int, (Int,), args...)
-# end
-
 macro jlrun(e)
-    dump(e)
     fun = e.args[1]
     efun = esc(fun)
     args = length(e.args) > 1 ? e.args[2:end] : Any[]
     libpath = abspath(string("lib", fun, ".o"))
     dylibpath = abspath(string("lib", fun, ".so"))
     tt = Tuple{(typeof(eval(a)) for a in args)...}
-    rettype = code_typed(Base.eval(__module__, fun), tt)[1][2]
+    if length(e.args) > 1
+        ct = code_typed(Base.eval(__module__, fun), tt)
+    else
+        ct = code_typed(Base.eval(__module__, fun))
+    end
+    rettype = ct[1][2]
     pkgdir = @__DIR__
-    funname = string(fun)
     quote
         native = irgen($efun, $tt)
         dump_native(native, $libpath)
         run($(`clang -shared -fpic $libpath -o $dylibpath -L$pkgdir/../../usr/lib -ljulia-debug`))
+        sleep(2)
         ccall((:init_lib, $dylibpath), Cvoid, ()) 
         ccall(($(Meta.quot(fun)), $dylibpath), 
               $rettype, ($((typeof(eval(a)) for a in args)...),), $(args...))

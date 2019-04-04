@@ -87,6 +87,10 @@ end
 # println("f_ccall")
 # m_ccall = irgen(f_ccall, Tuple{})
 
+fccall(x) = ccall(:jl_ver_major, Cint, ())
+# @show irgen(fccall, Tuple{Int})
+@show @jlrun fccall 1
+
 # f_cglobal() = cglobal("myglobal", Int)
 # println("f_cglobal")
 # m_cglobal = irgen(f_cglobal, Tuple{})
@@ -166,9 +170,9 @@ end
 # ccall((:init_lib, "/home/tshort/jn-codegen/src/libarraysum.so"), Cvoid, ()) 
 # ccall((:f_arraysum, "/home/tshort/jn-codegen/src/libarraysum.so"), Int, (Int,), 6) 
 
-arraysum(x) = sum([x, 1])
+# arraysum(x) = sum([x, 1])
 # @show macroexpand(X, :(@jlrun arraysum 3))
-@show @jlrun arraysum 3
+# @show @jlrun arraysum 3
 
 # fsin(x) = sin(x)
 # @show irgen(fsin, Tuple{Float64})
