@@ -379,9 +379,6 @@ void *jl_create_native(jl_array_t *methods, const jl_cgparams_t cgparams)
     std::vector<std::string> gvars;
     jl_array_t *gvararray = jl_alloc_vec_any(0);
     for (auto &global : params.globals) {
-        jl_printf(JL_STDERR," jcn global, %s, first: %p, second: %p\n", global.second->getName(), global.first, (void *)global.second);
-        jl_printf(JL_STDERR," jcn global, type: %s\n", jl_typeof_str((jl_value_t*)global.first));
-        jl_printf(JL_STDERR," jcn global, isfun: %d\n", jl_isa((jl_value_t *)global.first, (jl_value_t*)jl_function_type));
         gvars.push_back(global.second->getName());
         data->jl_value_to_llvm[global.first] = gvars.size();
         if (!jl_isa((jl_value_t *)global.first, (jl_value_t*)jl_function_type)) {
@@ -412,12 +409,10 @@ void *jl_create_native(jl_array_t *methods, const jl_cgparams_t cgparams)
         }
         else {
             data->jl_sysimg_fvars.push_back(cast<Function>(clone->getNamedValue(func)));
-        jl_printf(JL_STDERR," jcn func, %s\n", func);
             func_id = data->jl_sysimg_fvars.size();
         }
         if (!cfunc.empty() && jl_egal(this_li->rettype, rettype)) {
             data->jl_sysimg_fvars.push_back(cast<Function>(clone->getNamedValue(cfunc)));
-        jl_printf(JL_STDERR," jcn cfunc, %s\n", cfunc);
             cfunc_id = data->jl_sysimg_fvars.size();
         }
         data->jl_fvar_map[this_li] = std::make_tuple(func_id, cfunc_id);
@@ -426,7 +421,6 @@ void *jl_create_native(jl_array_t *methods, const jl_cgparams_t cgparams)
     // now get references to the globals in the merged module
     // and set them to be internalized and initialized at startup
     for (auto &global : gvars) {
-        jl_printf(JL_STDERR," -- ref jcn global, %s\n", global.c_str());
         GlobalVariable *G = cast<GlobalVariable>(clone->getNamedValue(global));
         if (!isinlibjulia(global)) {
             G->setInitializer(ConstantPointerNull::get(cast<PointerType>(G->getValueType())));
@@ -449,7 +443,6 @@ void *jl_create_native(jl_array_t *methods, const jl_cgparams_t cgparams)
     // (before adding the exported headers)
     for (GlobalObject &G : clone->global_objects()) {
         if (!G.isDeclaration()) {
-            jl_printf(JL_STDERR," -- ref jcn global objects, %s\n", G.getName());
             G.setLinkage(Function::InternalLinkage);
             if (standalone_aot_mode)     // TODO: find a better way to do this
                 G.setLinkage(Function::ExternalLinkage);
@@ -469,7 +462,6 @@ void *jl_create_native(jl_array_t *methods, const jl_cgparams_t cgparams)
     // jl_emit_globals_table((void*)data);
     if (standalone_aot_mode) {
         for (auto &tbl : fun_table) {
-            jl_printf(JL_STDERR," -- ref jcn rename from %s to %s\n", tbl.first.c_str(), tbl.second.c_str());
             cast<Function>(data->M->getNamedValue(tbl.first))->setName(tbl.second);
         }
     }

@@ -87,9 +87,9 @@ end
 # println("f_ccall")
 # m_ccall = irgen(f_ccall, Tuple{})
 
-fccall(x) = ccall(:jl_ver_major, Cint, ())
+# fccall(x) = ccall(:jl_ver_major, Cint, ())
 # @show irgen(fccall, Tuple{Int})
-@show @jlrun fccall 1
+# @show @jlrun fccall 1
 
 # f_cglobal() = cglobal("myglobal", Int)
 # println("f_cglobal")
@@ -130,10 +130,14 @@ fccall(x) = ccall(:jl_ver_major, Cint, ())
 # @show pointer_from_objref(arr)
 # @show pointer_from_objref(Array{Int,1})
 # f_array(x) = arr
-# sum(@jlrun f_array 5)
+# @show @jlrun f_array 5
 # @show f_array(5)
 # println("f_array")
-# m_array = irgen(f_array, Tuple{})
+# @show m_array = irgen(f_array, Tuple{Int})
+# m_array = irgen(f_array, Tuple{Int}, "libarr.o")
+# run(`clang -shared -fpic libarr.o -o libarr.so`)
+# ccall((:init_lib, "/home/tshort/jn-codegen/src/libarr.so"), Cvoid, ()) 
+# z = ccall((:f_array, "/home/tshort/jn-codegen/src/libarr.so"), Any, (Int,), 1) 
 
 # struct AaaaaA
 #     a::Int
@@ -147,7 +151,7 @@ fccall(x) = ccall(:jl_ver_major, Cint, ())
 # A2(x) = x.a > 2 ? 2*x.b : x.b
 # @show macroexpand(X, :(@jlrun A2 A))
 # @show m_A2 = irgen(A2, Tuple{AaaaaA})
-# z = @jlrun A2 A
+# @show z = @jlrun A2 A
 # ccall((:init_lib, "/home/tshort/jn-codegen/src/libA2.so"), Cvoid, ()) 
 # ccall((:A2, "/home/tshort/jn-codegen/src/libA2.so"), Float64, (AaaaaA,), A) 
 
@@ -191,8 +195,12 @@ fccall(x) = ccall(:jl_ver_major, Cint, ())
 # # f_many() = (:jkljkljkljkl, :asdfasdf, :qwerty)
 # # f_many() = ("jkljkljkl", "qwery", "asdfasdfasdf")
 # println("f_many")
+# @show m_many = irgen(f_many, Tuple{})
 # m_many = irgen(f_many, Tuple{}, "libmany.o")
 # run(`clang -shared -fpic libmany.o -o libmany.so`)
+# ccall((:init_lib, "/home/tshort/jn-codegen/src/libmany.so"), Cvoid, ()) 
+# @show ccall((:f_many, "/home/tshort/jn-codegen/src/libmany.so"), Any, ()) 
+# @show ccall((:f_many, "/home/tshort/jn-codegen/src/libmany.so"), Tuple{String,Symbol,Symbol,String}, ()) 
 
 
 

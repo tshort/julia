@@ -260,7 +260,6 @@ static Value *julia_pgv(jl_codectx_t &ctx, const char *cname, void *addr)
     // first see if there already is a GlobalVariable for this address
     GlobalVariable* &gv = ctx.global_targets[addr];
     Module *M = jl_Module;
-        jl_printf(JL_STDERR,"  pgv, %s, %p\n", cname, addr);
     if (!gv) {
         // otherwise emit a new GlobalVariable for a jl_value_t named "cname"
         std::stringstream gvname;
@@ -272,13 +271,11 @@ static Value *julia_pgv(jl_codectx_t &ctx, const char *cname, void *addr)
         gv = new GlobalVariable(*M, T_pjlvalue,
                                 false, GlobalVariable::ExternalLinkage,
                                 NULL, gvname.str());
-        jl_printf(JL_STDERR,"    new GV\n");
     }
     else if (gv->getParent() != M) {
         // re-use the same name, but move it to the new module
         // this will help simplify merging them later
         gv = prepare_global_in(M, gv);
-        jl_printf(JL_STDERR,"    pgi\n");
     }
     return gv;
 }
@@ -440,9 +437,7 @@ static Value *literal_pointer_val_slot(jl_codectx_t &ctx, jl_value_t *p)
     if (jl_is_datatype(p)) {
         jl_datatype_t *addr = (jl_datatype_t*)p;
         if (standalone_aot_mode) {
-            jl_printf(JL_STDERR," lpvs datatype, %s\n", jl_symbol_name(addr->name->name));
             std::string name = jl_name_from_type(addr);
-            jl_printf(JL_STDERR," lpvs name from type, %s\n", name.c_str());
 	        if (!name.empty())
                 return julia_pgv(ctx, name.c_str(), p);
         }
@@ -597,7 +592,6 @@ static Value *julia_binding_gv(jl_codectx_t &ctx, jl_binding_t *b)
     // binding->value are prefixed with *
     if (b && standalone_aot_mode && jl_is_datatype(b->value)) {
         std::string name = jl_name_from_type((jl_datatype_t*)b->value);
-        jl_printf(JL_STDERR," jbg, %s, value: %p, globalref: %p\n", jl_symbol_name(b->name), b->value, b->globalref);
         if (!name.empty())
             return julia_binding_gv(ctx, emit_bitcast(ctx,
                        tbaa_decorate(tbaa_const,
@@ -606,8 +600,6 @@ static Value *julia_binding_gv(jl_codectx_t &ctx, jl_binding_t *b)
     }
     Value *bv;
     if (imaging_mode || standalone_aot_mode) {
-        jl_printf(JL_STDERR," jbg, %s, value: %p, globalref: %p, b: %p, ismethd: %d\n", 
-                  jl_symbol_name(b->name), b->value, b->globalref, b, jl_isa(b->value, (jl_value_t*)jl_function_type));
         bv = emit_bitcast(ctx,
                 tbaa_decorate(tbaa_const,
                               ctx.builder.CreateLoad(T_pjlvalue, julia_pgv(ctx, "*", b->name, b->owner, b->value))),
@@ -984,7 +976,6 @@ static jl_cgval_t emit_typeof(jl_codectx_t &ctx, const jl_cgval_t &p)
                 Value *cmp = ctx.builder.CreateICmpEQ(tindex, ConstantInt::get(T_int8, idx));
                 Value *ptr;
                 if (imaging_mode || standalone_aot_mode) {
-            jl_printf(JL_STDERR,"    et\n");
                     ptr = literal_pointer_val_slot(ctx, (jl_value_t*)jt);
                 }
                 else {

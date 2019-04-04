@@ -3349,10 +3349,8 @@ JL_DLLEXPORT void jl_restore_mini_sysimg(void *jl_sysimg_gvars, void *jl_system_
     }
 
     jl_gc_enable_finalizers(ptls, 1); // make sure we don't run any Julia code concurrently before this point
-    jl_printf(JL_STDERR, " jl_restore_mini_sysimg: after finalizers\n");
 
     JL_GC_POP();
-    jl_printf(JL_STDERR, " done with jl_restore_mini_sysimg\n");
 }
 
 // --- init ---
