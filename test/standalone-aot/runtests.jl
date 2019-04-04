@@ -27,9 +27,8 @@ fsin(x) = sin(x)
 fccall() = ccall(:jl_ver_major, Cint, ())
 @test fccall() == @jlrun fccall()
 
-# f_cglobal() = cglobal("myglobal", Int)
-# println("f_cglobal")
-# m_cglobal = irgen(f_cglobal, Tuple{})
+fcglobal() = cglobal(:jl_n_threads, Cint)
+@test fcglobal() == @jlrun fcglobal()
 
 ## BROKEN
 
