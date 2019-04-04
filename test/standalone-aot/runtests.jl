@@ -30,6 +30,17 @@ fccall() = ccall(:jl_ver_major, Cint, ())
 fcglobal() = cglobal(:jl_n_threads, Cint)
 @test fcglobal() == @jlrun fcglobal()
 
+many() = ("jkljkljkl", :jkljkljkljkl, :asdfasdf, "asdfasdfasdf")
+## @jlrun doesn't work with this method.
+## Here, ccall needs an Any return type, not the tuple type deduced by @jlrun.
+# @show @jlrun many()
+native = irgen(many, Tuple{})
+dump_native(native, "libmany.o")
+run(`clang -shared -fpic libmany.o -o libmany.so`)
+ccall((:init_lib, "./libmany.so"), Cvoid, ()) 
+@test many() == ccall((:many, "./libmany.so"), Any, ()) 
+
+
 #################################################
 ## BROKEN
 #################################################
@@ -37,7 +48,7 @@ fcglobal() = cglobal(:jl_n_threads, Cint)
 
 sv = Core.svec(1,2,3,4)
 f_sv() = sv
-# @show @jlrun f_sv()  # Returns 1 (wrong)
+@show @jlrun f_sv()  # Returns 1 (wrong)
 
 arr = [9,9,9,9]
 f_array() = arr
@@ -52,9 +63,4 @@ A = AaaaaA(1, 2.2)
 A2(x) = x.a > 2 ? 2*x.b : x.b
 # @show z = @jlrun A2(A)
 
-## Works with an Any return type but not the tuple type.
-##   --Need to match to LLVM return types
-many() = ("jkljkljkl", :jkljkljkljkl, :asdfasdf, "asdfasdfasdf")
-# @show @jlrun many()
-# @test many() == @jlrun many()
 
