@@ -48,7 +48,12 @@ int main(int argc, char *argv[])
 It also may fail if `jl_init` relies on having the sysimg.
 Beyond that, we may not want all of what `jl_init` does for some use cases.
 
-## Test implementation
+## Current status
+
+The code can handle `ccall` and `cglobal`. There's working code for serialization and 
+restoration of global variables. Some simple programs work when compiled to a shared 
+library then called from Julia (using `ccall`). It also renames functions, so that 
+`julia_myfun_203` is `myfun` in the resulting object file.
 
 The `test/standalone-aot` directory contains tests/examples. `runtests.jl` runs tests.
 `IRGen.jl` has code to generate standalone libraries. The main routines are:
@@ -60,16 +65,8 @@ The `test/standalone-aot` directory contains tests/examples. `runtests.jl` runs 
   Uses `clang` to compile the `.o` file to a `.so` shared library (hardcoded for
   Linux for now).
 
-
-## Current status
-
-The code can handle `ccall` and `cglobal`. There's working code for serialization and 
-restoration of global variables. Some simple programs work when compiled to a shared 
-library then called from Julia (using `ccall`). It also renames functions, so that 
-`julia_myfun_203` is `myfun` in the resulting object file.
-
-Support for standalone libraries and executables is more a work in progress. Code like
-`fsin(x) = sin(x)` works, but code that uses the standard library is still failing. Working
+Support for standalone libraries and executables is more a work in progress. Methods like
+`fsin(x) = sin(x)` work, but code that uses the standard library is still failing. Working
 out compiling and linking flags as well as initialization are the main challenges here.
 
 Another problem area is dynamic code that uses `invoke()`. That currently doesn't work
@@ -92,6 +89,10 @@ Right now, the testing code just targets Linux.
 Help would be appreciated in any of the above plus code reviews and testing out what types 
 of code compiles and what doesn't. 
 
+## Other ideas
+
+- Maybe return an object that has information on what functions are exported. 
+  This could be used to generate C headers or interfaces to other languages like R or Python.
 
 ## Relevant issues / repos
 

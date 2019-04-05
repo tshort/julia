@@ -73,7 +73,8 @@ macro jlrun(e)
         dylib = Libdl.dlopen($dylibpath)
         ccall(Libdl.dlsym(dylib, "init_lib"), Cvoid, ()) 
         ccall(Libdl.dlsym(dylib, $(Meta.quot(fun))),
-              $rettype, ($((typeof(eval(a)) for a in args)...),), $(args...))
+            #   $rettype, ($((typeof(eval(a)) for a in args)...),), $(args...))
+              $rettype, ($((typeof(eval(a)) for a in args)...),), $(eval.(args)...))
     end
 end
 

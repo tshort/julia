@@ -40,27 +40,11 @@ run(`clang -shared -fpic libmany.o -o libmany.so`)
 ccall((:init_lib, "./libmany.so"), Cvoid, ()) 
 @test many() == ccall((:many, "./libmany.so"), Any, ()) 
 
-
-#################################################
-## BROKEN functions
-#################################################
-
-
-sv = Core.svec(1,2,3,4)
+const sv = Core.svec(1,2,3,4)
 fsv() = sv
-@show @jlrun fsv()  # Returns 1 (wrong)
+@test fsv() == @jlrun fsv()
 
-arr = [9,9,9,9]
+const arr = [9,9,9,9]
 farray() = arr
-# @show @jlrun farray()
-
-struct AaaaaA
-    a::Int
-    b::Float64
-end
-
-A = AaaaaA(1, 2.2)
-fA(x) = x.a > 2 ? 2*x.b : x.b
-# @show z = @jlrun fA(A)
-
+@test farray() == @jlrun farray()
 
