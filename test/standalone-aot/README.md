@@ -87,6 +87,11 @@ at all. That is used in IO code, so there's no "hello world", yet.
 
 Right now, the testing code just targets Linux.
 
+The API to adjust the new variable `standalone-aot-mode` in code generation is clunky. 
+Right now, there's a `jl_set_standalone_aot_mode()` function and a 
+`jl_clear_standalone_aot_mode()` function to control this variable. 
+Control of this mode should probably be done through codegen parameters.
+
 ## Next steps
 
 - Continue to work on initialization.
