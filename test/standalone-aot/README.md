@@ -65,7 +65,7 @@ The `test/standalone-aot` directory contains tests/examples. `runtests.jl` runs 
   Uses `clang` to compile the `.o` file to a `.so` shared library (hardcoded for
   Linux for now).
 
-Support for standalone libraries and executables is also possible. 
+This code also can be used to compile for standalone libraries and executables.
 See the `test/standalone-aot/standalone-exe` for two examples. 
 This hasn't been tested a lot.
 
