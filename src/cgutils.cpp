@@ -438,7 +438,7 @@ static Value *literal_pointer_val_slot(jl_codectx_t &ctx, jl_value_t *p)
         jl_datatype_t *addr = (jl_datatype_t*)p;
         if (standalone_aot_mode) {
             std::string name = jl_name_from_type(addr);
-	        if (!name.empty())
+            if (!name.empty())
                 return julia_pgv(ctx, name.c_str(), p);
         }
         // DataTypes are prefixed with a +
@@ -602,7 +602,8 @@ static Value *julia_binding_gv(jl_codectx_t &ctx, jl_binding_t *b)
     if (imaging_mode || standalone_aot_mode) {
         bv = emit_bitcast(ctx,
                 tbaa_decorate(tbaa_const,
-                              ctx.builder.CreateLoad(T_pjlvalue, julia_pgv(ctx, "*", b->name, b->owner, b->value))),
+                              ctx.builder.CreateLoad(T_pjlvalue, julia_pgv(ctx, "*", b->name, b->owner, 
+                                                                           standalone_aot_mode ? b->value : (jl_value_t*)b))),
                 T_pprjlvalue);
     }
     else

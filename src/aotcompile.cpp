@@ -171,7 +171,8 @@ static void emit_offset_table(Module &mod, const std::vector<GlobalValue*> &vars
 {
     // Emit a global variable with all the variable addresses.
     // The cloning pass will convert them into offsets.
-    // if (vars.empty()) return;
+    if (!standalone_aot_mode) 
+        assert(!vars.empty());
     size_t nvars = vars.size();
     std::vector<Constant*> addrs(nvars);
     for (size_t i = 0; i < nvars; i++) {
@@ -381,7 +382,7 @@ void *jl_create_native(jl_array_t *methods, const jl_cgparams_t cgparams)
     for (auto &global : params.globals) {
         gvars.push_back(global.second->getName());
         data->jl_value_to_llvm[global.first] = gvars.size();
-        if (!jl_isa((jl_value_t *)global.first, (jl_value_t*)jl_function_type)) {
+        if (standalone_aot_mode && !jl_isa((jl_value_t *)global.first, (jl_value_t*)jl_function_type)) {
             jl_array_ptr_1d_push(gvararray, (jl_value_t *)global.first);
         }
     }
@@ -422,7 +423,7 @@ void *jl_create_native(jl_array_t *methods, const jl_cgparams_t cgparams)
     // and set them to be internalized and initialized at startup
     for (auto &global : gvars) {
         GlobalVariable *G = cast<GlobalVariable>(clone->getNamedValue(global));
-        if (!isinlibjulia(global)) {
+        if (!standalone_aot_mode || !isinlibjulia(global)) {
             G->setInitializer(ConstantPointerNull::get(cast<PointerType>(G->getValueType())));
             G->setLinkage(GlobalVariable::InternalLinkage);
         }
@@ -458,9 +459,8 @@ void *jl_create_native(jl_array_t *methods, const jl_cgparams_t cgparams)
 
     data->M = std::move(clone);
     
-    jl_emit_globals_table((void*)data, gvararray);
-    // jl_emit_globals_table((void*)data);
     if (standalone_aot_mode) {
+        jl_emit_globals_table((void*)data, gvararray);
         for (auto &tbl : fun_table) {
             cast<Function>(data->M->getNamedValue(tbl.first))->setName(tbl.second);
         }
@@ -495,7 +495,7 @@ static void reportWriterError(const ErrorInfoBase &E)
 
 // takes the running content that has collected in the shadow module and dump it to disk
 // this builds the object file portion of the sysimage files for fast startup
-extern "C" JL_DLLEXPORT
+extern "C"
 void jl_dump_native(void *native_code,
         const char *bc_fname, const char *unopt_bc_fname, const char *obj_fname,
         const char *sysimg_data, size_t sysimg_len)
