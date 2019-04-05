@@ -65,18 +65,17 @@ The `test/standalone-aot` directory contains tests/examples. `runtests.jl` runs 
   Uses `clang` to compile the `.o` file to a `.so` shared library (hardcoded for
   Linux for now).
 
-Support for standalone libraries and executables is more a work in progress. Methods like
-`fsin(x) = sin(x)` work, but code that uses the standard library is still failing. Working
-out compiling and linking flags as well as initialization are the main challenges here.
+Support for standalone libraries and executables is also possible. 
+See the `test/standalone-aot/standalone-exe` for two examples. 
+This hasn't been tested a lot.
 
-Another problem area is dynamic code that uses `invoke()`. That currently doesn't work
+A major problem area is dynamic code that uses `invoke()`. That currently doesn't work
 at all. That is used in IO code, so there's no "hello world", yet.
 
 Right now, the testing code just targets Linux.
 
 ## Next steps
 
-- Move examples to test/something; maybe try Makefiles.
 - Continue to work on initialization.
 - Fix exporting, so only the methods passed to `create_native` get exported.
 - Don't export intrinsics as globals.
