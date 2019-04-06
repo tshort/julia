@@ -8,6 +8,9 @@ using Test
 twox(x) = 2x
 @test twox(10) == @jlrun twox(10)
 
+fmap(x) = sum(map(twox, [1, x]))
+@test fmap(10) == @jlrun fmap(10)
+
 hello() = "hellllllo world!"
 @test hello() == @jlrun hello()
 

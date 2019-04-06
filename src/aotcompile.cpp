@@ -344,6 +344,7 @@ void *jl_create_native(jl_array_t *methods, const jl_cgparams_t cgparams)
     JL_GC_PUSH1(&src);
     JL_LOCK(&codegen_lock);
 
+    std::vector<std::string> fun_list;
     // compile all methods for the current world, and maybe also then the type-inference world
     for (int worlds = 2; worlds > 0; worlds--) {
         params.world = (worlds == 1 ? jl_world_counter : jl_typeinf_world);
@@ -366,8 +367,10 @@ void *jl_create_native(jl_array_t *methods, const jl_cgparams_t cgparams)
                 if (!emitted.count(mi)) {
                     // now add it to our compilation results
                     jl_compile_result_t result = jl_compile_linfo1(mi, src, params);
-                    if (std::get<0>(result))
+                    if (std::get<0>(result)) {
                         emitted[mi] = std::move(result);
+                        fun_list.push_back(std::get<1>(emitted[mi]).specFunctionObject);
+                    }
                 }
             }
         }
@@ -461,8 +464,10 @@ void *jl_create_native(jl_array_t *methods, const jl_cgparams_t cgparams)
     
     if (standalone_aot_mode) {
         jl_emit_globals_table((void*)data, gvararray);
+        // rename the functions meant to be exported
         for (auto &tbl : fun_table) {
-            cast<Function>(data->M->getNamedValue(tbl.first))->setName(tbl.second);
+            if (std::find(fun_list.begin(), fun_list.end(), tbl.first) != fun_list.end())
+                cast<Function>(data->M->getNamedValue(tbl.first))->setName(tbl.second);
         }
     }
     JL_UNLOCK(&codegen_lock); // Might GC
