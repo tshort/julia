@@ -100,7 +100,6 @@ Control of this mode should probably be done through codegen parameters.
 - Work out how to initialize type pointers: should be part of `jl_init`.
 - Work out initialization and calls from other code. What about multiple library invocations?
 - Work out stdin, stdout, etc.
-- Apply `ExternalLinkage` for code in libjulia (finish this).
 - Come up with a strategy for `invoke`.
 
 Help would be appreciated in any of the above plus code reviews and testing out what types 
