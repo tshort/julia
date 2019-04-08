@@ -140,6 +140,8 @@ typedef enum _DUMP_MODES {
     MODE_MODULE
 } DUMP_MODES;
 
+static int mini_image = 0;  // TODO: move this to a DUMP_MODE?
+
 typedef struct {
     ios_t *s;
     DUMP_MODES mode;
@@ -388,12 +390,27 @@ static void jl_serialize_datatype(jl_serializer_state *s, jl_datatype_t *dt) JL_
     jl_serialize_value(s, dt->types);
 }
 
+static int should_be_loaded(jl_serializer_state *s, jl_module_t *m) JL_NOTSAFEPOINT
+{
+    if (!mini_image) {
+        return !module_in_worklist(m);
+    } else {
+        int i, l = jl_array_len(s->loaded_modules_array);
+        for (i = 0; i < l; i++) {
+            jl_module_t *mi = (jl_module_t*)jl_array_ptr_ref(s->loaded_modules_array, i);
+            if (m == mi)
+                return 1;
+        }
+    }
+    return 0;
+}
+
 static void jl_serialize_module(jl_serializer_state *s, jl_module_t *m)
 {
     write_uint8(s->s, TAG_MODULE);
     jl_serialize_value(s, m->name);
     size_t i;
-    if (!module_in_worklist(m)) {
+    if (should_be_loaded(s, m)) {
         if (m == m->parent) {
             // top-level module
             write_int8(s->s, 2);
@@ -448,6 +465,8 @@ static void jl_serialize_module(jl_serializer_state *s, jl_module_t *m)
     write_uint64(s->s, m->build_id);
     write_int32(s->s, m->counter);
     write_int32(s->s, m->nospecialize);
+    if (mini_image)  // for the mini image, we serialize modules as needed
+        jl_array_ptr_1d_push(s->loaded_modules_array, m);
 }
 
 static int is_ast_node(jl_value_t *v)
@@ -1806,6 +1825,8 @@ static jl_value_t *jl_deserialize_value_module(jl_serializer_state *s) JL_GC_DIS
     m->counter = read_int32(s->s);
     m->nospecialize = read_int32(s->s);
     m->primary_world = jl_world_counter;
+    if (mini_image)
+        jl_array_ptr_1d_push(s->loaded_modules_array, m);
     return (jl_value_t*)m;
 }
 
@@ -3314,6 +3335,7 @@ JL_DLLEXPORT void jl_restore_mini_sysimg(void *jl_sysimg_gvars, void *jl_system_
         ptls,
         mod_array
     };
+    mini_image = 1;
     jl_array_t *restored = (jl_array_t*)jl_deserialize_value(&s, (jl_value_t**)&restored);
     serializer_worklist = restored;
 
@@ -3332,6 +3354,7 @@ JL_DLLEXPORT void jl_restore_mini_sysimg(void *jl_sysimg_gvars, void *jl_system_
     // jl_recache_other(&dependent_worlds); // make all of the other objects identities correct (needs to be after insert methods)
     // jl_array_t *init_order = jl_finalize_deserializer(&s, tracee_list); // done with f and s (needs to be after recache)
 
+    mini_image = 0;
     JL_GC_PUSH1(&restored);
     jl_gc_enable(en); // subtyping can allocate a lot, not valid before recache-other
 

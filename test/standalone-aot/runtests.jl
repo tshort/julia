@@ -5,6 +5,14 @@ using Test
 
 # Various tests
 
+using LLVM
+llvmmod(native_code) =
+    LLVM.Module(ccall(:jl_get_llvm_module, LLVM.API.LLVMModuleRef,
+                      (Ptr{Cvoid},), native_code.p))
+native = irgen(rand, Tuple{})
+# @show llvmmod(native)
+@jlrun rand()
+
 twox(x) = 2x
 @test twox(10) == @jlrun twox(10)
 
