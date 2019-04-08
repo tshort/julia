@@ -394,7 +394,7 @@ static int should_be_loaded(jl_serializer_state *s, jl_module_t *m) JL_NOTSAFEPO
 {
     if (!mini_image) {
         return !module_in_worklist(m);
-    } else {
+    } else {     // check if it's already in the loaded list
         int i, l = jl_array_len(s->loaded_modules_array);
         for (i = 0; i < l; i++) {
             jl_module_t *mi = (jl_module_t*)jl_array_ptr_ref(s->loaded_modules_array, i);
@@ -437,7 +437,7 @@ static void jl_serialize_module(jl_serializer_state *s, jl_module_t *m)
     jl_serialize_value(s, m->parent);
     void **table = m->bindings.table;
     for(i=1; i < m->bindings.size; i+=2) {
-        if (table[i] != HT_NOTFOUND) {
+        if (table[i] != HT_NOTFOUND && !mini_image) {
             jl_binding_t *b = (jl_binding_t*)table[i];
             if (b->owner == m || m != jl_main_module) {
                 jl_serialize_value(s, b->name);
@@ -2869,7 +2869,7 @@ JL_DLLEXPORT void jl_save_mini_image_to_stream(ios_t *f, jl_array_t *worklist)
     }
 
     jl_array_t *mod_array = NULL, *udeps = NULL;
-    mod_array = jl_get_loaded_modules();
+    mod_array = jl_alloc_vec_any(0);
 
     int en = jl_gc_enable(0); // edges map is not gc-safe
     jl_array_t *lambdas = jl_alloc_vec_any(0);
@@ -2884,6 +2884,7 @@ JL_DLLEXPORT void jl_save_mini_image_to_stream(ios_t *f, jl_array_t *worklist)
     }
 
     jl_collect_backedges(edges);
+    mod_array = jl_alloc_vec_any(0);
 
     jl_serializer_state s = {
         f, MODE_MODULE,
@@ -2891,11 +2892,13 @@ JL_DLLEXPORT void jl_save_mini_image_to_stream(ios_t *f, jl_array_t *worklist)
         jl_get_ptls_states(),
         mod_array
     };
+    mini_image = 1;
     jl_serialize_value(&s, worklist);
     jl_serialize_value(&s, lambdas);
     jl_serialize_value(&s, edges);
     jl_finalize_serializer(&s);
     serializer_worklist = NULL;
+    mini_image = 0;
 
     jl_gc_enable(en);
     htable_reset(&edges_map, 0);
