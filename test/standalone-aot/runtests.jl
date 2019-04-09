@@ -4,20 +4,20 @@ using .IRGen
 using Test
 
 # Various tests
-
 using LLVM
 llvmmod(native_code) =
     LLVM.Module(ccall(:jl_get_llvm_module, LLVM.API.LLVMModuleRef,
                       (Ptr{Cvoid},), native_code.p))
-# native = irgen(rand, Tuple{})
-# @show llvmmod(native)
+
+@show llvmmod(irgen(rand, Tuple{}))
 # @jlrun rand()
 
-using Dates
-fdate(x) = Dates.days(Dates.DateTime(2016, x, 1))
-native = irgen(fdate, Tuple{Int})
-@show llvmmod(native)
-# # @jlrun fdate(3)
+# using Dates
+# fdate(x) = Dates.days(Dates.DateTime(2016, x, 1))
+# native = irgen(fdate, Tuple{Int})
+# @show llvmmod(native)
+# @show @jlrun fdate(3)
+# @test fdate(3) == @jlrun fdate(3)
 
 # mutable struct AAA
 #     aaa::Int
