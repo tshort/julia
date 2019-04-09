@@ -488,7 +488,10 @@ void *jl_create_native(jl_array_t *methods, const jl_cgparams_t cgparams)
     for (auto &global : params.globals) {
         gvars.push_back(global.second->getName());
         data->jl_value_to_llvm[global.first] = gvars.size();
-        if (standalone_aot_mode && !jl_isa((jl_value_t *)global.first, (jl_value_t*)jl_function_type)) {
+        if (standalone_aot_mode && !jl_isa((jl_value_t *)global.first, (jl_value_t*)jl_function_type) &&
+            !jl_isa((jl_value_t *)global.first, (jl_value_t*)jl_datatype_type))  {
+     jl_printf(JL_STDOUT,"global: %d  %s\n\n", gvars.size(), global.second->getName());
+
             jl_array_ptr_1d_push(gvararray, (jl_value_t *)global.first);
         }
     }

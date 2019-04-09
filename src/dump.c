@@ -285,6 +285,8 @@ static int type_recursively_external(jl_datatype_t *dt) JL_NOTSAFEPOINT
 
 static void jl_serialize_datatype(jl_serializer_state *s, jl_datatype_t *dt) JL_GC_DISABLED
 {
+    if (mini_image)
+        jl_printf(JL_STDOUT, " datatype: %s.\n", jl_symbol_name(dt->name->name));
     int tag = 0;
     int internal = module_in_worklist(dt->name->module);
     if (!internal && jl_unwrap_unionall(dt->name->wrapper) == (jl_value_t*)dt) {
@@ -314,6 +316,9 @@ static void jl_serialize_datatype(jl_serializer_state *s, jl_datatype_t *dt) JL_
         tag = 10;
     }
 
+    if (mini_image)
+        tag = 0;
+
     if (strncmp(jl_symbol_name(dt->name->name), "#kw#", 4) == 0) {
         /* XXX: yuck, but the auto-generated kw types from the serializer isn't a real type, so we *must* be very careful */
         assert(tag == 0 || tag == 5 || tag == 6 || tag == 10);
@@ -328,6 +333,7 @@ static void jl_serialize_datatype(jl_serializer_state *s, jl_datatype_t *dt) JL_
     }
 
     write_uint8(s->s, TAG_DATATYPE);
+    // jl_printf(JL_STDERR, "   tag: %d.\n", tag);
     write_uint8(s->s, tag);
     if (tag == 6) {
         jl_serialize_value(s, dt->name);
@@ -411,6 +417,8 @@ static void jl_serialize_module(jl_serializer_state *s, jl_module_t *m)
     jl_serialize_value(s, m->name);
     size_t i;
     if (should_be_loaded(s, m)) {
+        if (mini_image)
+            jl_printf(JL_STDERR, "\nloaded module: %s.\n", jl_symbol_name(m->name));
         if (m == m->parent) {
             // top-level module
             write_int8(s->s, 2);
@@ -433,18 +441,31 @@ static void jl_serialize_module(jl_serializer_state *s, jl_module_t *m)
         }
         return;
     }
+    if (mini_image)
+        jl_printf(JL_STDOUT, "\nnew module: %s.\n", jl_symbol_name(m->name));
+    if (mini_image)  // for the mini image, we serialize modules as needed
+        jl_array_ptr_1d_push(s->loaded_modules_array, m);
     write_int8(s->s, 0);
     jl_serialize_value(s, m->parent);
     void **table = m->bindings.table;
     for(i=1; i < m->bindings.size; i+=2) {
-        if (table[i] != HT_NOTFOUND && !mini_image) {
+        if (table[i] != HT_NOTFOUND) {
             jl_binding_t *b = (jl_binding_t*)table[i];
-            if (b->owner == m || m != jl_main_module) {
+            jl_value_t *bv;
+            // if (b->value != NULL)
+            //     bv = jl_unwrap_unionall(b->value);
+            // if ((b->owner == m || m != jl_main_module) && (b->value != NULL) &&
+            //     (!mini_image || jl_is_datatype(bv) || jl_is_module(bv) || jl_is_unionall(bv))) {
+            if (!mini_image && (b->owner == m || m != jl_main_module)) {
+                // jl_printf(JL_STDERR, "   BINDING: %s.\n", jl_symbol_name(b->name));
                 jl_serialize_value(s, b->name);
                 jl_serialize_value(s, b->value);
                 jl_serialize_value(s, b->globalref);
                 jl_serialize_value(s, b->owner);
                 write_int8(s->s, (b->deprecated<<3) | (b->constp<<2) | (b->exportp<<1) | (b->imported));
+            }
+            else {
+                // jl_printf(JL_STDERR, "   binding: %s.\n", jl_symbol_name(b->name));
             }
         }
     }
@@ -452,6 +473,9 @@ static void jl_serialize_module(jl_serializer_state *s, jl_module_t *m)
     if (m == jl_main_module) {
         write_int32(s->s, 1);
         jl_serialize_value(s, (jl_value_t*)jl_core_module);
+    }
+    else if (mini_image) {
+        write_int32(s->s, 0);
     }
     else {
         write_int32(s->s, m->usings.len);
@@ -465,8 +489,6 @@ static void jl_serialize_module(jl_serializer_state *s, jl_module_t *m)
     write_uint64(s->s, m->build_id);
     write_int32(s->s, m->counter);
     write_int32(s->s, m->nospecialize);
-    if (mini_image)  // for the mini image, we serialize modules as needed
-        jl_array_ptr_1d_push(s->loaded_modules_array, m);
 }
 
 static int is_ast_node(jl_value_t *v)
@@ -679,6 +701,8 @@ static void jl_serialize_value_(jl_serializer_state *s, jl_value_t *v, int as_li
         }
         else {
             for (i = 0; i < jl_array_len(ar); i++) {
+                if (mini_image)
+                    jl_printf(JL_STDOUT, "array i: %d.\n", i);
                 jl_serialize_value(s, jl_array_ptr_ref(v, i));
             }
         }
@@ -996,7 +1020,7 @@ static void jl_serialize_value_(jl_serializer_state *s, jl_value_t *v, int as_li
             }
             jl_serialize_value(s, t);
             if (t == jl_typename_type) {
-                if (module_in_worklist(((jl_typename_t*)v)->module)) {
+                if (module_in_worklist(((jl_typename_t*)v)->module) || mini_image) {
                     write_uint8(s->s, 0);
                 }
                 else {
@@ -1460,11 +1484,12 @@ static jl_value_t *jl_deserialize_datatype(jl_serializer_state *s, int pos, jl_v
     }
 
     if (has_instance) {
-        assert(dt->uid != 0 && "there shouldn't be an instance on a type with uid = 0");
+        // assert(dt->uid != 0 && "there shouldn't be an instance on a type with uid = 0");
         dt->instance = jl_deserialize_value(s, &dt->instance);
         jl_gc_wb(dt, dt->instance);
     }
     dt->name = (jl_typename_t*)jl_deserialize_value(s, (jl_value_t**)&dt->name);
+    // jl_printf(JL_STDERR, "\nDESER: new datatype: %s.\n", jl_symbol_name(dt->name->name));
     jl_gc_wb(dt, dt->name);
     dt->names = (jl_svec_t*)jl_deserialize_value(s, (jl_value_t**)&dt->names);
     jl_gc_wb(dt, dt->names);
@@ -1775,6 +1800,7 @@ static jl_value_t *jl_deserialize_value_module(jl_serializer_state *s) JL_GC_DIS
     if (usetable)
         arraylist_push(&backref_list, NULL);
     jl_sym_t *mname = (jl_sym_t*)jl_deserialize_value(s, NULL);
+    // jl_printf(JL_STDERR, "\nDESER: new module: %s.\n", jl_symbol_name(mname));
     int ref_only = read_uint8(s->s);
     if (ref_only) {
         jl_value_t *m_ref;
