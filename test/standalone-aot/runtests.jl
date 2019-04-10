@@ -11,15 +11,14 @@ llvmmod(native_code) =
 
 pkgdir = @__DIR__
 
-# @show llvmmod(irgen(rand, Tuple{}))
-# @show a = @jlrun rand()    # broken for some reason
-# dump_native(irgen(rand, Tuple{}), "librand.o")
-# run(`clang -shared -fpic librand.o -o librand.so -L$pkgdir/../../usr/lib -ljulia-debug -ldSFMT`)
-# @show ccall((:init_lib, "./librand.so"), Cvoid, ()) 
-# @show ccall((:rand, "./librand.so"), Float64, ()) 
-# @show ccall((:rand, "./librand.so"), Float64, ()) 
-# @show ccall((:rand, "./librand.so"), Float64, ()) 
-
+GC.enable(false)
+dump_native(irgen(rand, Tuple{}), "librand.o")
+run(`clang -shared -fpic librand.o -o librand.so -L$pkgdir/../../usr/lib -ljulia-debug -ldSFMT`)
+@show ccall((:init_lib, "./librand.so"), Cvoid, ()) 
+@show ccall((:rand, "./librand.so"), Float64, ()) 
+@show ccall((:rand, "./librand.so"), Float64, ()) 
+@show ccall((:rand, "./librand.so"), Float64, ()) 
+GC.enable(true)
 
 using Dates
 fdate(x) = Dates.days(Dates.DateTime(2016, x, 1))
