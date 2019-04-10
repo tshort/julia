@@ -289,7 +289,14 @@ static void jl_serialize_datatype(jl_serializer_state *s, jl_datatype_t *dt) JL_
         jl_printf(JL_STDOUT, " datatype: %s.\n", jl_symbol_name(dt->name->name));
     int tag = 0;
     int internal = module_in_worklist(dt->name->module);
-    if (!internal && jl_unwrap_unionall(dt->name->wrapper) == (jl_value_t*)dt) {
+    if (mini_image && dt->layout && jl_datatype_nfields(dt) > 0 && !jl_is_tuple_type(dt) && !jl_is_array_type(dt)) {   // change the type to a tuple
+        jl_(dt);
+        dt = jl_apply_tuple_type(dt->types);
+        jl_(dt);
+        // jl_serialize_value(s, dt);
+        // return;
+    }
+    else if (!internal && jl_unwrap_unionall(dt->name->wrapper) == (jl_value_t*)dt) {
         tag = 6; // external primary type
     }
     else if (dt->uid == 0) {
@@ -415,9 +422,7 @@ static void jl_serialize_module(jl_serializer_state *s, jl_module_t *m)
     write_uint8(s->s, TAG_MODULE);
     jl_serialize_value(s, m->name);
     size_t i;
-    if (should_be_loaded(s, m)) {
-        if (mini_image)
-            jl_printf(JL_STDERR, "\nloaded module: %s.\n", jl_symbol_name(m->name));
+    if (!module_in_worklist(m)) {
         if (m == m->parent) {
             // top-level module
             write_int8(s->s, 2);
@@ -442,8 +447,6 @@ static void jl_serialize_module(jl_serializer_state *s, jl_module_t *m)
     }
     if (mini_image)
         jl_printf(JL_STDOUT, "\nnew module: %s.\n", jl_symbol_name(m->name));
-    // if (mini_image)  // for the mini image, we serialize modules as needed
-        // jl_array_ptr_1d_push(s->loaded_modules_array, m);
     write_int8(s->s, 0);
     jl_serialize_value(s, m->parent);
     void **table = m->bindings.table;
@@ -451,20 +454,12 @@ static void jl_serialize_module(jl_serializer_state *s, jl_module_t *m)
         if (table[i] != HT_NOTFOUND) {
             jl_binding_t *b = (jl_binding_t*)table[i];
             jl_value_t *bv;
-            // if (b->value != NULL)
-            //     bv = jl_unwrap_unionall(b->value);
-            // if ((b->owner == m || m != jl_main_module) && (b->value != NULL) &&
-            //     (!mini_image || jl_is_datatype(bv) || jl_is_module(bv) || jl_is_unionall(bv))) {
-            if (!mini_image && (b->owner == m || m != jl_main_module)) {
-                // jl_printf(JL_STDERR, "   BINDING: %s.\n", jl_symbol_name(b->name));
+            if (b->owner == m || m != jl_main_module) {
                 jl_serialize_value(s, b->name);
                 jl_serialize_value(s, b->value);
                 jl_serialize_value(s, b->globalref);
                 jl_serialize_value(s, b->owner);
                 write_int8(s->s, (b->deprecated<<3) | (b->constp<<2) | (b->exportp<<1) | (b->imported));
-            }
-            else {
-                // jl_printf(JL_STDERR, "   binding: %s.\n", jl_symbol_name(b->name));
             }
         }
     }
@@ -700,8 +695,6 @@ static void jl_serialize_value_(jl_serializer_state *s, jl_value_t *v, int as_li
         }
         else {
             for (i = 0; i < jl_array_len(ar); i++) {
-                if (mini_image)
-                    jl_printf(JL_STDOUT, "array i: %d.\n", i);
                 jl_serialize_value(s, jl_array_ptr_ref(v, i));
             }
         }
@@ -1016,10 +1009,6 @@ static void jl_serialize_value_(jl_serializer_state *s, jl_value_t *v, int as_li
             else {
                 write_uint8(s->s, TAG_GENERAL);
                 write_int32(s->s, t->size);
-            }
-            if (mini_image) {
-                ios_write(s->s, (char*)data, t->size);
-                return;
             }
             jl_serialize_value(s, t);
             if (t == jl_typename_type) {
@@ -1488,7 +1477,7 @@ static jl_value_t *jl_deserialize_datatype(jl_serializer_state *s, int pos, jl_v
     }
 
     if (has_instance) {
-        // assert(dt->uid != 0 && "there shouldn't be an instance on a type with uid = 0");
+        assert(dt->uid != 0 && "there shouldn't be an instance on a type with uid = 0");
         dt->instance = jl_deserialize_value(s, &dt->instance);
         jl_gc_wb(dt, dt->instance);
     }
@@ -1855,8 +1844,8 @@ static jl_value_t *jl_deserialize_value_module(jl_serializer_state *s) JL_GC_DIS
     m->counter = read_int32(s->s);
     m->nospecialize = read_int32(s->s);
     m->primary_world = jl_world_counter;
-    if (mini_image)
-        jl_array_ptr_1d_push(s->loaded_modules_array, m);
+    // if (mini_image)
+        // jl_array_ptr_1d_push(s->loaded_modules_array, m);
     return (jl_value_t*)m;
 }
 
@@ -1980,10 +1969,6 @@ static jl_value_t *jl_deserialize_value_any(jl_serializer_state *s, uint8_t tag,
     jl_value_t *v = jl_gc_alloc(s->ptls, sz, NULL);
     jl_set_typeof(v, (void*)(intptr_t)0x50);
     uintptr_t pos = backref_list.len;
-    if (mini_image) {
-        ios_read(s->s, (char*)jl_data_ptr(v), sz);
-        return v;
-    }
     if (usetable)
         arraylist_push(&backref_list, v);
     jl_datatype_t *dt = (jl_datatype_t*)jl_deserialize_value(s, &jl_astaggedvalue(v)->type);
@@ -3373,6 +3358,7 @@ JL_DLLEXPORT void jl_restore_mini_sysimg(void *jl_sysimg_gvars, void *jl_system_
     };
     mini_image = 1;
     jl_array_t *restored = (jl_array_t*)jl_deserialize_value(&s, (jl_value_t**)&restored);
+    jl_(restored);
     serializer_worklist = restored;
 
     // get list of external generic functions
