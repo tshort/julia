@@ -11,19 +11,6 @@ llvmmod(native_code) =
 
 pkgdir = @__DIR__
 
-many() = ("jkljkljkl", :jkljkljkljkl, :asdfasdf, "asdfasdfasdf")
-## @jlrun doesn't work with this method.
-## Here, ccall needs an Any return type, not the tuple type deduced by @jlrun.
-# @show @jlrun many()
-# native = irgen(many, Tuple{})
-# @show llvmmod(native)
-# dump_native(native, "libmany.o")
-# run(`clang -shared -fpic libmany.o -o libmany.so -L$pkgdir/../../usr/lib -ljulia-debug`)
-# ccall((:init_lib, "./libmany.so"), Cvoid, ()) 
-# @test many() == ccall((:many, "./libmany.so"), Any, ()) 
-
-
-
 # @show llvmmod(irgen(rand, Tuple{}))
 # @show a = @jlrun rand()    # broken for some reason
 # dump_native(irgen(rand, Tuple{}), "librand.o")
@@ -102,7 +89,7 @@ native = irgen(many, Tuple{})
 dump_native(native, "libmany.o")
 run(`clang -shared -fpic libmany.o -o libmany.so -L$pkgdir/../../usr/lib -ljulia-debug`)
 ccall((:init_lib, "./libmany.so"), Cvoid, ()) 
-# @test many() == ccall((:many, "./libmany.so"), Any, ()) 
+@test many() == ccall((:many, "./libmany.so"), Any, ()) 
 
 const sv = Core.svec(1,2,3,4)
 fsv() = sv
