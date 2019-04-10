@@ -83,7 +83,7 @@ jglobal() = a[]
 @test jglobal()[] == (@jlrun jglobal())[]
 
 arraysum(x) = sum([x, 1])
-# @test arraysum(6) == @jlrun arraysum(6)
+@test arraysum(6) == @jlrun arraysum(6)
 
 fsin(x) = sin(x)
 @test fsin(0.5) == @jlrun fsin(0.5)

@@ -488,9 +488,10 @@ void *jl_create_native(jl_array_t *methods, const jl_cgparams_t cgparams)
     jl_array_t *gvararray = jl_alloc_vec_any(0);
     for (auto &global : params.globals) {
         allgvars.push_back(global.second->getName());
-        if (standalone_aot_mode && !jl_isa((jl_value_t *)global.first, (jl_value_t*)jl_function_type) &&
-            !jl_isa((jl_value_t *)global.first, (jl_value_t*)jl_intrinsic_type) &&
-            !jl_isa((jl_value_t *)global.first, (jl_value_t*)jl_datatype_type))  {
+        if (standalone_aot_mode && !jl_isa((jl_value_t *)global.first, (jl_value_t*)jl_function_type)) {
+        // if (standalone_aot_mode && !jl_isa((jl_value_t *)global.first, (jl_value_t*)jl_function_type) &&
+            // !jl_isa((jl_value_t *)global.first, (jl_value_t*)jl_intrinsic_type) &&
+            // !jl_isa((jl_value_t *)global.first, (jl_value_t*)jl_datatype_type))  {
             gvars.push_back(global.second->getName());
             data->jl_value_to_llvm[global.first] = gvars.size();
             jl_array_ptr_1d_push(gvararray, (jl_value_t *)global.first);
