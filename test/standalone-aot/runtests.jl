@@ -23,7 +23,7 @@ GC.enable(true)
 using Dates
 fdate(x) = Dates.days(Dates.DateTime(2016, x, 1))
 native = irgen(fdate, Tuple{Int})
-@show llvmmod(native)
+# @show llvmmod(native)
 @show @jlrun fdate(3)
 @test fdate(3) == @jlrun fdate(3)
 

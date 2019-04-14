@@ -293,8 +293,20 @@ static void jl_serialize_datatype(jl_serializer_state *s, jl_datatype_t *dt) JL_
         jl_(dt);
         dt = jl_apply_tuple_type(dt->types);
         jl_(dt);
-        // jl_serialize_value(s, dt);
-        // return;
+    }
+    else if (mini_image && !jl_is_tuple_type(dt) && !jl_is_array_type(dt) && dt != jl_float64_type) {
+        if (dt->size == 0) {  // change the type to Any
+            jl_(dt);
+            jl_printf(JL_STDERR, "-> Any\n");
+            dt = jl_any_type;
+            jl_(dt);
+        }
+        else {  // change the type to a tuple type with correct size
+            jl_(dt);
+            jl_printf(JL_STDERR, "-> Tuple{UInt8...}\n");
+            dt = jl_tupletype_fill(dt->size, jl_uint8_type);
+            jl_(dt);
+        }
     }
     else if (!internal && jl_unwrap_unionall(dt->name->wrapper) == (jl_value_t*)dt) {
         tag = 6; // external primary type
