@@ -66,10 +66,11 @@ macro jlrun(e)
     end
     rettype = ct[1][2]
     pkgdir = @__DIR__
+    bindir = string(Sys.BINDIR, "/../tools")
     quote
         native = irgen($efun, $tt)
         dump_native(native, $libpath)
-        run($(`clang -shared -fpic $libpath -o $dylibpath -L$pkgdir/../../usr/lib -ljulia-debug -ldSFMT`), wait = true)
+        run($(`$bindir/clang -shared -fpic $libpath -o $dylibpath -L$pkgdir/../../usr/lib -ljulia-debug -ldSFMT`), wait = true)
         dylib = Libdl.dlopen($dylibpath)
         ccall(Libdl.dlsym(dylib, "init_lib"), Cvoid, ()) 
         ccall(Libdl.dlsym(dylib, $(Meta.quot(fun))),

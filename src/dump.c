@@ -290,6 +290,7 @@ static void jl_serialize_datatype(jl_serializer_state *s, jl_datatype_t *dt) JL_
     int tag = 0;
     int internal = module_in_worklist(dt->name->module);
     if (mini_image && dt->layout && jl_datatype_nfields(dt) > 0 && !jl_is_tuple_type(dt) && !jl_is_array_type(dt)) {   // change the type to a tuple
+    // iif (mini_image && dt->layout && !dt->abstract && !jl_is_tuple_type(dt) && !jl_is_array_type(dt)) {   // change the type to a tuple
         jl_(dt);
         dt = jl_apply_tuple_type(dt->types);
         jl_(dt);
