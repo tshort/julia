@@ -295,16 +295,26 @@ static void jl_serialize_datatype(jl_serializer_state *s, jl_datatype_t *dt) JL_
         jl_(dt);
     }
     else if (mini_image && !jl_is_tuple_type(dt) && !jl_is_array_type(dt) && dt != jl_float64_type) {
-        if (dt->size == 0) {  // change the type to Any
-            jl_(dt);
-            jl_printf(JL_STDERR, "-> Any\n");
-            dt = jl_any_type;
-            jl_(dt);
-        }
-        else {  // change the type to a tuple type with correct size
+        if (dt->size > 0) {  // change the type to a tuple type with correct size
             jl_(dt);
             jl_printf(JL_STDERR, "-> Tuple{UInt8...}\n");
             dt = jl_tupletype_fill(dt->size, jl_uint8_type);
+            jl_(dt);
+        }
+        else {
+            jl_(dt);
+            if (dt->instance) {   // Singleton
+                jl_printf(JL_STDERR, "-> ??\n");
+                // dt = jl_tupletype_fill(dt->size, jl_uint8_type);
+            }
+            else {
+                jl_printf(JL_STDERR, "-> Any\n");
+                dt = jl_any_type;
+            }
+            // dt = jl_tupletype_fill(dt->size, jl_uint8_type);
+            // dt = jl_any_type;
+            // dt = jl_boundserror_type;
+            // dt = jl_emptytuple_type;
             jl_(dt);
         }
     }
@@ -1995,6 +2005,8 @@ static jl_value_t *jl_deserialize_value_any(jl_serializer_state *s, uint8_t tag,
             jl_value_t *v = (jl_value_t*)dt->name;
             if (usetable)
                 backref_list.items[pos] = v;
+    if (mini_image)
+        jl_printf(JL_STDERR, "XX\n");
             return v;
         }
     }
@@ -2017,6 +2029,8 @@ static jl_value_t *jl_deserialize_value_any(jl_serializer_state *s, uint8_t tag,
     else {
         jl_deserialize_struct(s, v, 0);
     }
+    if (mini_image)
+        jl_(v);
     return v;
 }
 
@@ -2886,6 +2900,7 @@ JL_DLLEXPORT void jl_save_mini_image_to_stream(ios_t *f, jl_array_t *worklist)
 
     serializer_worklist = worklist;
     
+        jl_(worklist);
     arraylist_new(&reinit_list, 0);
     htable_new(&edges_map, 0);
     htable_new(&backref_table, 5000);
