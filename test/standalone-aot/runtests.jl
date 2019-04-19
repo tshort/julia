@@ -14,7 +14,7 @@ pkgdir = @__DIR__
 GC.enable(false)
 dump_native(irgen(rand, Tuple{}), "librand.o")
 run(`clang -shared -fpic librand.o -o librand.so -L$pkgdir/../../usr/lib -ljulia-debug -ldSFMT`)
-@show ccall((:init_lib, "./librand.so"), Cvoid, ()) 
+ccall((:init_lib, "./librand.so"), Cvoid, ()) 
 @show ccall((:rand, "./librand.so"), Float64, ()) 
 @show ccall((:rand, "./librand.so"), Float64, ()) 
 @show ccall((:rand, "./librand.so"), Float64, ()) 
@@ -46,17 +46,11 @@ end # module
 ffstruct(x) = ZZ.fstruct(x)
 @test ffstruct(10) == @jlrun ffstruct(10)
 
-push!(LOAD_PATH, ".")
-import ZZZ
-fffstruct(x) = ZZZ.fstruct(x)
-@test fffstruct(10) == @jlrun fffstruct(10)
-# @show llvmmod(irgen(fffstruct, Tuple{Int}))
-
 twox(x) = 2x
 @test twox(10) == @jlrun twox(10)
 
 fmap(x) = sum(map(twox, [1, x]))
-# @test fmap(10) == @jlrun fmap(10)
+@test fmap(10) == @jlrun fmap(10)
 
 hello() = "hellllllo world!"
 @test hello() == @jlrun hello()
@@ -98,5 +92,12 @@ const arr = [9,9,9,9]
 farray() = arr
 @test farray() == @jlrun farray()
 
+@noinline f(x) = 3x
+@noinline fop(f, x) = 2f(x)
+funcall(x) = fop(f, x)
+
+@test funcall(2) == @jlrun funcall(2)
+
 
 nothing
+

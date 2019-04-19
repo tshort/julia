@@ -285,37 +285,20 @@ static int type_recursively_external(jl_datatype_t *dt) JL_NOTSAFEPOINT
 
 static void jl_serialize_datatype(jl_serializer_state *s, jl_datatype_t *dt) JL_GC_DISABLED
 {
-    if (mini_image)
-        jl_printf(JL_STDOUT, " datatype: %s.\n", jl_symbol_name(dt->name->name));
     int tag = 0;
     int internal = module_in_worklist(dt->name->module);
-    if (mini_image && dt->layout && jl_datatype_nfields(dt) > 0 && !jl_is_tuple_type(dt) && !jl_is_array_type(dt)) {   // change the type to a tuple
-        jl_(dt);
-        dt = jl_apply_tuple_type(dt->types);
-        jl_(dt);
-    }
-    else if (mini_image && !jl_is_tuple_type(dt) && !jl_is_array_type(dt) && dt != jl_float64_type) {
-        if (dt->size > 0) {  // change the type to a tuple type with correct size
-            jl_(dt);
-            jl_printf(JL_STDERR, "-> Tuple{UInt8...}\n");
-            dt = jl_tupletype_fill(dt->size, jl_uint8_type);
-            jl_(dt);
+    if (mini_image && !jl_is_tuple_type(dt) && !jl_is_array_type(dt) && dt != jl_float64_type) {
+        if (dt->layout && jl_datatype_nfields(dt) > 0) {  // change the type to a tuple type with correct size
+            dt = jl_apply_tuple_type(dt->types);
         }
-        else {
-            jl_(dt);
-            if (dt->instance) {   // Singleton
-                jl_printf(JL_STDERR, "-> ??\n");
-                // dt = jl_tupletype_fill(dt->size, jl_uint8_type);
-            }
-            else {
-                jl_printf(JL_STDERR, "-> Any\n");
-                dt = jl_any_type;
-            }
-            // dt = jl_tupletype_fill(dt->size, jl_uint8_type);
-            // dt = jl_any_type;
-            // dt = jl_boundserror_type;
-            // dt = jl_emptytuple_type;
-            jl_(dt);
+        else if (dt->size > 0) {  // change the type to a tuple type with correct size
+            dt = jl_tupletype_fill(dt->size, jl_uint8_type);
+        }
+        else if (dt->instance) {  // use a special tag to flag Singletons
+            tag = 11;
+        }
+        else {                    // substitute `Any` for abstract types
+            dt = jl_any_type;
         }
     }
     else if (!internal && jl_unwrap_unionall(dt->name->wrapper) == (jl_value_t*)dt) {
@@ -359,7 +342,6 @@ static void jl_serialize_datatype(jl_serializer_state *s, jl_datatype_t *dt) JL_
     }
 
     write_uint8(s->s, TAG_DATATYPE);
-    // jl_printf(JL_STDERR, "   tag: %d.\n", tag);
     write_uint8(s->s, tag);
     if (tag == 6) {
         jl_serialize_value(s, dt->name);
@@ -372,6 +354,9 @@ static void jl_serialize_datatype(jl_serializer_state *s, jl_datatype_t *dt) JL_
     }
     if (tag == 9) {
         jl_serialize_value(s, dt);
+        return;
+    }
+    if (tag == 11) {
         return;
     }
 
@@ -422,23 +407,6 @@ static void jl_serialize_datatype(jl_serializer_state *s, jl_datatype_t *dt) JL_
     jl_serialize_value(s, dt->types);
 }
 
-static int should_be_loaded(jl_serializer_state *s, jl_module_t *m) JL_NOTSAFEPOINT
-{
-    if (!mini_image) {
-        return !module_in_worklist(m);
-    } else {     // check if it's already in the loaded list
-        int i, l = jl_array_len(s->loaded_modules_array);
-        for (i = 0; i < l; i++) {
-            jl_module_t *mi = (jl_module_t*)jl_array_ptr_ref(s->loaded_modules_array, i);
-            if (m == mi)
-                // return 0;
-                return 1;
-        }
-    }
-    // return 0;
-    return 1;
-}
-
 static void jl_serialize_module(jl_serializer_state *s, jl_module_t *m)
 {
     write_uint8(s->s, TAG_MODULE);
@@ -467,15 +435,12 @@ static void jl_serialize_module(jl_serializer_state *s, jl_module_t *m)
         }
         return;
     }
-    if (mini_image)
-        jl_printf(JL_STDOUT, "\nnew module: %s.\n", jl_symbol_name(m->name));
     write_int8(s->s, 0);
     jl_serialize_value(s, m->parent);
     void **table = m->bindings.table;
     for(i=1; i < m->bindings.size; i+=2) {
         if (table[i] != HT_NOTFOUND) {
             jl_binding_t *b = (jl_binding_t*)table[i];
-            jl_value_t *bv;
             if (b->owner == m || m != jl_main_module) {
                 jl_serialize_value(s, b->name);
                 jl_serialize_value(s, b->value);
@@ -490,9 +455,6 @@ static void jl_serialize_module(jl_serializer_state *s, jl_module_t *m)
         write_int32(s->s, 1);
         jl_serialize_value(s, (jl_value_t*)jl_core_module);
     }
-    // else if (mini_image) {
-        // write_int32(s->s, 0);
-    // }
     else {
         write_int32(s->s, m->usings.len);
         for(i=0; i < m->usings.len; i++) {
@@ -1034,7 +996,6 @@ static void jl_serialize_value_(jl_serializer_state *s, jl_value_t *v, int as_li
             }
             jl_serialize_value(s, t);
             if (t == jl_typename_type) {
-                // if (module_in_worklist(((jl_typename_t*)v)->module) || mini_image) {
                 if (module_in_worklist(((jl_typename_t*)v)->module)) {
                     write_uint8(s->s, 0);
                 }
@@ -1409,6 +1370,11 @@ static jl_value_t *jl_deserialize_datatype(jl_serializer_state *s, int pos, jl_v
         backref_list.items[pos] = dtv;
         return dtv;
     }
+    if (tag == 11) {
+        jl_datatype_t *dt = jl_new_datatype(jl_symbol("DummyType"), jl_core_module, jl_any_type, jl_emptysvec,
+                                            jl_emptysvec, jl_emptysvec, 0, 0, 0);
+        return dt;
+    }
     size_t size = read_int32(s->s);
     uint8_t flags = read_uint8(s->s);
     uint8_t memflags = read_uint8(s->s);
@@ -1504,7 +1470,6 @@ static jl_value_t *jl_deserialize_datatype(jl_serializer_state *s, int pos, jl_v
         jl_gc_wb(dt, dt->instance);
     }
     dt->name = (jl_typename_t*)jl_deserialize_value(s, (jl_value_t**)&dt->name);
-    // jl_printf(JL_STDERR, "\nDESER: new datatype: %s.\n", jl_symbol_name(dt->name->name));
     jl_gc_wb(dt, dt->name);
     dt->names = (jl_svec_t*)jl_deserialize_value(s, (jl_value_t**)&dt->names);
     jl_gc_wb(dt, dt->names);
@@ -1815,7 +1780,6 @@ static jl_value_t *jl_deserialize_value_module(jl_serializer_state *s) JL_GC_DIS
     if (usetable)
         arraylist_push(&backref_list, NULL);
     jl_sym_t *mname = (jl_sym_t*)jl_deserialize_value(s, NULL);
-    // jl_printf(JL_STDERR, "\nDESER: new module: %s.\n", jl_symbol_name(mname));
     int ref_only = read_uint8(s->s);
     if (ref_only) {
         jl_value_t *m_ref;
@@ -1866,8 +1830,6 @@ static jl_value_t *jl_deserialize_value_module(jl_serializer_state *s) JL_GC_DIS
     m->counter = read_int32(s->s);
     m->nospecialize = read_int32(s->s);
     m->primary_world = jl_world_counter;
-    // if (mini_image)
-        // jl_array_ptr_1d_push(s->loaded_modules_array, m);
     return (jl_value_t*)m;
 }
 
@@ -2005,8 +1967,6 @@ static jl_value_t *jl_deserialize_value_any(jl_serializer_state *s, uint8_t tag,
             jl_value_t *v = (jl_value_t*)dt->name;
             if (usetable)
                 backref_list.items[pos] = v;
-    if (mini_image)
-        jl_printf(JL_STDERR, "XX\n");
             return v;
         }
     }
@@ -2029,8 +1989,6 @@ static jl_value_t *jl_deserialize_value_any(jl_serializer_state *s, uint8_t tag,
     else {
         jl_deserialize_struct(s, v, 0);
     }
-    if (mini_image)
-        jl_(v);
     return v;
 }
 
@@ -2900,7 +2858,6 @@ JL_DLLEXPORT void jl_save_mini_image_to_stream(ios_t *f, jl_array_t *worklist)
 
     serializer_worklist = worklist;
     
-        jl_(worklist);
     arraylist_new(&reinit_list, 0);
     htable_new(&edges_map, 0);
     htable_new(&backref_table, 5000);
@@ -3385,7 +3342,6 @@ JL_DLLEXPORT void jl_restore_mini_sysimg(void *jl_sysimg_gvars, void *jl_system_
     };
     mini_image = 1;
     jl_array_t *restored = (jl_array_t*)jl_deserialize_value(&s, (jl_value_t**)&restored);
-    jl_(restored);
     serializer_worklist = restored;
 
     // get list of external generic functions
@@ -3536,24 +3492,6 @@ void jl_init_serializer(void)
     arraylist_push(&builtin_typenames, jl_tuple_typename);
     arraylist_push(&builtin_typenames, jl_vararg_typename);
     arraylist_push(&builtin_typenames, jl_namedtuple_typename);
-}
-
-JL_DLLEXPORT void jl_init_basics(void) {
-    jl_init();
-    return;
-    // return;
-    jl_gc_init();
-    jl_gc_init();
-    jl_gc_enable(0);
-    jl_init_types();
-    jl_init_serializer();
-//         jl_core_module = jl_new_module(jl_symbol("Core"));
-//         jl_type_typename->mt->module = jl_core_module;
-//         jl_top_module = jl_core_module;
-//         jl_init_intrinsic_functions();
-//         jl_init_primitives();
-//         jl_get_builtins();
-//         jl_init_main_module();
 }
 
 #ifdef __cplusplus
