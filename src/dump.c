@@ -3329,8 +3329,8 @@ JL_DLLEXPORT void jl_restore_mini_sysimg(void *jl_sysimg_gvars, void *jl_system_
     arraylist_push(&backref_list, jl_main_module);
     arraylist_new(&flagref_list, 0);
     arraylist_push(&dependent_worlds, (void*)jl_world_counter);
-    arraylist_push(&dependent_worlds, (void*)jl_main_module->primary_world);
-    qsort(dependent_worlds.items, dependent_worlds.len, sizeof(size_t), size_isgreater);
+    // arraylist_push(&dependent_worlds, (void*)jl_main_module->primary_world);
+    // qsort(dependent_worlds.items, dependent_worlds.len, sizeof(size_t), size_isgreater);
 
     jl_array_t *mod_array = jl_alloc_vec_any(0);
 

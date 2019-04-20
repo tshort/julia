@@ -94,12 +94,7 @@ Control of this mode should probably be done through codegen parameters.
 
 ## Next steps
 
-- Continue to work on initialization.
-- Figure out how to implement the two-arg version of `ccall` with a library specified.
-- Fix exporting, so only the methods passed to `create_native` get exported.
 - Don't export intrinsics as globals.
-- Work out how to initialize type pointers: should be part of `jl_init`.
-- Work out initialization and calls from other code. What about multiple library invocations?
 - Work out stdin, stdout, etc.
 - Come up with a strategy for `invoke`.
 
