@@ -15,6 +15,7 @@
 #include <llvm/Analysis/Passes.h>
 #include <llvm/Analysis/BasicAliasAnalysis.h>
 #include <llvm/Analysis/TypeBasedAliasAnalysis.h>
+#include <llvm/Analysis/ScopedNoAliasAA.h>
 #include <llvm/IR/Verifier.h>
 #include <llvm/Transforms/IPO.h>
 #include <llvm/Transforms/Scalar.h>
@@ -24,6 +25,9 @@
 #endif
 #include <llvm/Transforms/Scalar/GVN.h>
 #include <llvm/Transforms/IPO/AlwaysInliner.h>
+#if JL_LLVM_VERSION >= 70000
+#include <llvm/Transforms/InstCombine/InstCombine.h>
+#endif
 #if defined(USE_POLLY)
 #include <polly/RegisterPasses.h>
 #include <polly/LinkAllPasses.h>
@@ -55,6 +59,8 @@
 #include <llvm/CodeGen/TargetPassConfig.h>
 #include <llvm/MC/MCAsmInfo.h>
 #include <llvm/MC/MCStreamer.h>
+#include <llvm/MC/MCAsmBackend.h>
+#include <llvm/MC/MCCodeEmitter.h>
 
 #include <llvm/IR/LegacyPassManagers.h>
 #include <llvm/Transforms/Utils/Cloning.h>
@@ -104,18 +110,18 @@ typedef struct {
     std::unique_ptr<Module> M;
     std::vector<GlobalValue*> jl_sysimg_fvars;
     std::vector<GlobalValue*> jl_sysimg_gvars;
-    std::map<jl_method_instance_t *, std::tuple<uint32_t, uint32_t>> jl_fvar_map;
+    std::map<jl_code_instance_t*, std::tuple<uint32_t, uint32_t>> jl_fvar_map;
     std::map<void*, int32_t> jl_value_to_llvm; // uses 1-based indexing
 } jl_native_code_desc_t;
 
 extern "C" JL_DLLEXPORT
-void jl_get_function_id(void *native_code, jl_method_instance_t *linfo,
+void jl_get_function_id(void *native_code, jl_code_instance_t *codeinst,
         int32_t *func_idx, int32_t *specfunc_idx)
 {
     jl_native_code_desc_t *data = (jl_native_code_desc_t*)native_code;
     if (data) {
         // get the function index in the fvar lookup table
-        auto it = data->jl_fvar_map.find(linfo);
+        auto it = data->jl_fvar_map.find(codeinst);
         if (it != data->jl_fvar_map.end()) {
             std::tie(*func_idx, *specfunc_idx) = it->second;
         }
@@ -441,38 +447,49 @@ void *jl_create_native(jl_array_t *methods, const jl_cgparams_t cgparams)
     jl_native_code_desc_t *data = new jl_native_code_desc_t;
     jl_codegen_params_t params;
     params.params = &cgparams;
-    std::map<jl_method_instance_t *, jl_compile_result_t> emitted;
+    std::map<jl_code_instance_t*, jl_compile_result_t> emitted;
     jl_method_instance_t *mi = NULL;
     jl_code_info_t *src = NULL;
     JL_GC_PUSH1(&src);
     JL_LOCK(&codegen_lock);
 
+    // compile all methods for the current world and type-inference world
     std::vector<std::string> fun_list;
-    // compile all methods for the current world, and maybe also then the type-inference world
-    for (int worlds = 2; worlds > 0; worlds--) {
-        params.world = (worlds == 1 ? jl_world_counter : jl_typeinf_world);
+    size_t compile_for[] = { jl_typeinf_world, jl_world_counter };
+    for (int worlds = 0; worlds < 2; worlds++) {
+        params.world = compile_for[worlds];
         if (!params.world)
             continue;
         size_t i, l;
         for (i = 0, l = jl_array_len(methods); i < l; i++) {
             mi = (jl_method_instance_t*)jl_array_ptr_ref(methods, i);
-            // if this method is applicable to the current compilation,
+            src = NULL;
+            // if this method is generally visible to the current compilation world,
             // and this is either the primary world, or not applicable in the primary world
             // then we want to compile and emit this
-            if ((worlds == 1 || mi->max_world < jl_world_counter) && mi->min_world <= params.world && params.world <= mi->max_world) {
+            if (mi->def.method->primary_world <= params.world && params.world <= mi->def.method->deleted_world) {
                 // find and prepare the source code to compile
-                src = (jl_code_info_t*)mi->inferred;
-                if (src && (jl_value_t*)src != jl_nothing)
-                    src = jl_uncompress_ast(mi->def.method, (jl_array_t*)src);
-                if (!src || !jl_is_code_info(src)) {
-                    src = jl_type_infer(&mi, params.world, 0);
+                jl_code_instance_t *codeinst = jl_rettype_inferred(mi, params.world, params.world);
+                if (codeinst) {
+                    src = (jl_code_info_t*)codeinst->inferred;
+                    jl_method_t *def = codeinst->def->def.method;
+                    if ((jl_value_t*)src == jl_nothing)
+                        src = NULL;
+                    if (src && jl_is_method(def))
+                        src = jl_uncompress_ast(def, codeinst, (jl_array_t*)src);
                 }
-                if (!emitted.count(mi)) {
+                if (src == NULL || !jl_is_code_info(src)) {
+                    src = jl_type_infer(mi, params.world, 0);
+                    codeinst = jl_get_method_inferred(mi, src->rettype, src->min_world, src->max_world);
+                    if (src->inferred && !codeinst->inferred)
+                        codeinst->inferred = jl_nothing;
+                }
+                if (src && !emitted.count(codeinst)) {
                     // now add it to our compilation results
-                    jl_compile_result_t result = jl_compile_linfo1(mi, src, params);
+                    jl_compile_result_t result = jl_emit_code(mi, src, codeinst->rettype, params);
                     if (std::get<0>(result)) {
-                        emitted[mi] = std::move(result);
-                        fun_list.push_back(std::get<1>(emitted[mi]).specFunctionObject);
+                        emitted[codeinst] = std::move(result);
+                        fun_list.push_back(std::get<1>(emitted[codeinst]).specFunctionObject);
                     }
                 }
             }
@@ -489,7 +506,9 @@ void *jl_create_native(jl_array_t *methods, const jl_cgparams_t cgparams)
     for (auto &global : params.globals) {
         allgvars.push_back(global.second->getName());
         data->jl_value_to_llvm[global.first] = allgvars.size();
-        if (standalone_aot_mode && !jl_isa((jl_value_t *)global.first, (jl_value_t*)jl_function_type)) {
+        if (standalone_aot_mode && 
+            !jl_isa((jl_value_t *)global.first, (jl_value_t*)jl_function_type) && 
+            !jl_isa((jl_value_t *)global.first, (jl_value_t*)jl_method_instance_type)) {
             gvars.push_back(global.second->getName());
             jl_array_ptr_1d_push(gvararray, (jl_value_t *)global.first);
         }
@@ -498,16 +517,19 @@ void *jl_create_native(jl_array_t *methods, const jl_cgparams_t cgparams)
     // clones the contents of the module `m` to the shadow_output collector
     // while examining and recording what kind of function pointer we have
     ValueToValueMapTy VMap;
+#if JL_LLVM_VERSION >= 70000
+    std::unique_ptr<Module> clone(CloneModule(*shadow_output, VMap));
+#else
     std::unique_ptr<Module> clone(CloneModule(shadow_output, VMap));
+#endif 
     std::map<std::string, std::string> fun_table;
     for (auto &def : emitted) {
         jl_merge_module(clone.get(), std::move(std::get<0>(def.second)));
-        jl_method_instance_t *this_li = def.first;
+        jl_code_instance_t *this_code = def.first;
         jl_llvm_functions_t decls = std::get<1>(def.second);
-        jl_value_t *rettype = std::get<2>(def.second);
         StringRef func = decls.functionObject;
         StringRef cfunc = decls.specFunctionObject;
-        fun_table[cfunc] = jl_symbol_name(def.first->def.method->name);
+        fun_table[cfunc] = jl_symbol_name(def.first->def->def.method->name);
         uint32_t func_id = 0;
         uint32_t cfunc_id = 0;
         if (func == "jl_fptr_args") {
@@ -520,11 +542,11 @@ void *jl_create_native(jl_array_t *methods, const jl_cgparams_t cgparams)
             data->jl_sysimg_fvars.push_back(cast<Function>(clone->getNamedValue(func)));
             func_id = data->jl_sysimg_fvars.size();
         }
-        if (!cfunc.empty() && jl_egal(this_li->rettype, rettype)) {
+        if (!cfunc.empty()) {
             data->jl_sysimg_fvars.push_back(cast<Function>(clone->getNamedValue(cfunc)));
             cfunc_id = data->jl_sysimg_fvars.size();
         }
-        data->jl_fvar_map[this_li] = std::make_tuple(func_id, cfunc_id);
+        data->jl_fvar_map[this_code] = std::make_tuple(func_id, cfunc_id);
     }
 
     // now get references to the globals in the merged module
@@ -572,7 +594,7 @@ void *jl_create_native(jl_array_t *methods, const jl_cgparams_t cgparams)
     }
 
     data->M = std::move(clone);
-    
+
     if (standalone_aot_mode) {
         jl_emit_globals_table((void*)data, gvararray);
         // rename the functions meant to be exported
@@ -669,11 +691,15 @@ void jl_dump_native(void *native_code,
     if (unopt_bc_fname)
         PM.add(createBitcodeWriterPass(unopt_bc_OS));
     if (bc_fname || obj_fname)
-        addOptimizationPasses(&PM, jl_options.opt_level, true);
+        addOptimizationPasses(&PM, jl_options.opt_level, true, true);
     if (bc_fname)
         PM.add(createBitcodeWriterPass(bc_OS));
     if (obj_fname)
+#if JL_LLVM_VERSION >= 70000
+        if (TM->addPassesToEmitFile(PM, obj_OS, nullptr, TargetMachine::CGFT_ObjectFile, false))
+#else
         if (TM->addPassesToEmitFile(PM, obj_OS, TargetMachine::CGFT_ObjectFile, false))
+#endif
             jl_safe_printf("ERROR: target does not support generation of object files\n");
 
     // Reset the target triple to make sure it matches the new target machine
@@ -802,11 +828,15 @@ void jl_dump_native_lib(void *native_code, const char *obj_fname)
     std::error_code EC;
     raw_fd_ostream obj_OS(obj_fname, EC, sys::fs::F_None);
     if (EC) {
-      errs() << "Could not open file: " << EC.message();
-      return;
+        errs() << "Could not open file: " << EC.message();
+        return;
     }
-    addOptimizationPasses(&PM, jl_options.opt_level, false);
+    addOptimizationPasses(&PM, jl_options.opt_level, true, false);
+#if JL_LLVM_VERSION >= 70000
+    if (TM->addPassesToEmitFile(PM, obj_OS, nullptr, TargetMachine::CGFT_ObjectFile, false))
+#else
     if (TM->addPassesToEmitFile(PM, obj_OS, TargetMachine::CGFT_ObjectFile, false))
+#endif
         jl_safe_printf("ERROR: target does not support generation of object files\n");
 
     // Reset the target triple to make sure it matches the new target machine
@@ -834,7 +864,11 @@ void jl_dump_native_lib(void *native_code, const char *obj_fname)
 void jl_add_to_shadow(Module *m)
 {
     ValueToValueMapTy VMap;
+#if JL_LLVM_VERSION >= 70000
+    std::unique_ptr<Module> clone(CloneModule(*m, VMap));
+#else
     std::unique_ptr<Module> clone(CloneModule(m, VMap));
+#endif
     jl_merge_module(shadow_output, std::move(clone));
 }
 
@@ -847,7 +881,8 @@ void addTargetPasses(legacy::PassManagerBase *PM, TargetMachine *TM)
 
 // this defines the set of optimization passes defined for Julia at various optimization levels.
 // it assumes that the TLI and TTI wrapper passes have already been added.
-void addOptimizationPasses(legacy::PassManagerBase *PM, int opt_level, bool dump_native)
+void addOptimizationPasses(legacy::PassManagerBase *PM, int opt_level,
+                           bool lower_intrinsics, bool dump_native)
 {
 #ifdef JL_DEBUG_BUILD
     PM->add(createGCInvariantVerifierPass(true));
@@ -869,17 +904,20 @@ void addOptimizationPasses(legacy::PassManagerBase *PM, int opt_level, bool dump
         }
         PM->add(createMemCpyOptPass()); // Remove memcpy / form memset
         PM->add(createAlwaysInlinerLegacyPass()); // Respect always_inline
-        PM->add(createBarrierNoopPass());
-        PM->add(createLowerExcHandlersPass());
-        PM->add(createGCInvariantVerifierPass(false));
-        PM->add(createLateLowerGCFramePass());
-        PM->add(createLowerPTLSPass(dump_native));
-        PM->add(createLowerSimdLoopPass());        // Annotate loop marked with "simdloop" as LLVM parallel loop
+        if (lower_intrinsics) {
+            PM->add(createBarrierNoopPass());
+            PM->add(createLowerExcHandlersPass());
+            PM->add(createGCInvariantVerifierPass(false));
+            PM->add(createLateLowerGCFramePass());
+            PM->add(createLowerPTLSPass(dump_native));
+        }
+        PM->add(createLowerSimdLoopPass());        // Annotate loop marked with "loopinfo" as LLVM parallel loop
         if (dump_native)
             PM->add(createMultiVersioningPass());
         return;
     }
     PM->add(createPropagateJuliaAddrspaces());
+    PM->add(createScopedNoAliasAAWrapperPass());
     PM->add(createTypeBasedAAWrapperPass());
     if (opt_level >= 3) {
         PM->add(createBasicAAWrapperPass());
@@ -931,7 +969,7 @@ void addOptimizationPasses(legacy::PassManagerBase *PM, int opt_level, bool dump
     PM->add(polly::createCodegenCleanupPass());
 #endif
     // LoopRotate strips metadata from terminator, so run LowerSIMD afterwards
-    PM->add(createLowerSimdLoopPass());        // Annotate loop marked with "simdloop" as LLVM parallel loop
+    PM->add(createLowerSimdLoopPass());        // Annotate loop marked with "loopinfo" as LLVM parallel loop
     PM->add(createLICMPass());                 // Hoist loop invariants
     PM->add(createLoopUnswitchPass());         // Unswitch loops.
     // Subsequent passes not stripping metadata from terminator
@@ -953,8 +991,12 @@ void addOptimizationPasses(legacy::PassManagerBase *PM, int opt_level, bool dump
 
     // Run instcombine after redundancy elimination to exploit opportunities
     // opened up by them.
-    PM->add(createSinkingPass()); ////////////// ****
-    PM->add(createInstructionSimplifierPass());///////// ****
+    PM->add(createSinkingPass());
+#if JL_LLVM_VERSION < 70000
+    // This pass is a subset of InstructionCombiningPass in LLVM 7
+    // and therefore not required.
+    PM->add(createInstructionSimplifierPass());
+#endif
     PM->add(createInstructionCombiningPass());
     PM->add(createJumpThreadingPass());         // Thread jumps
     PM->add(createDeadStoreEliminationPass());  // Delete dead stores
@@ -974,18 +1016,21 @@ void addOptimizationPasses(legacy::PassManagerBase *PM, int opt_level, bool dump
     PM->add(createInstructionCombiningPass());  // Clean up after SLP loop vectorizer
     PM->add(createLoopVectorizePass());         // Vectorize loops
     PM->add(createInstructionCombiningPass());  // Clean up after loop vectorizer
-    // LowerPTLS removes an indirect call. As a result, it is likely to trigger
-    // LLVM's devirtualization heuristics, which would result in the entire
-    // pass pipeline being re-exectuted. Prevent this by inserting a barrier.
-    PM->add(createBarrierNoopPass());
-    PM->add(createLowerExcHandlersPass());
-    PM->add(createGCInvariantVerifierPass(false));
-    PM->add(createLateLowerGCFramePass());
-    // Remove dead use of ptls
-    PM->add(createDeadCodeEliminationPass());
-    PM->add(createLowerPTLSPass(dump_native));
-    // Clean up write barrier and ptls lowering
-    PM->add(createCFGSimplificationPass());
+
+    if (lower_intrinsics) {
+        // LowerPTLS removes an indirect call. As a result, it is likely to trigger
+        // LLVM's devirtualization heuristics, which would result in the entire
+        // pass pipeline being re-exectuted. Prevent this by inserting a barrier.
+        PM->add(createBarrierNoopPass());
+        PM->add(createLowerExcHandlersPass());
+        PM->add(createGCInvariantVerifierPass(false));
+        PM->add(createLateLowerGCFramePass());
+        // Remove dead use of ptls
+        PM->add(createDeadCodeEliminationPass());
+        PM->add(createLowerPTLSPass(dump_native));
+        // Clean up write barrier and ptls lowering
+        PM->add(createCFGSimplificationPass());
+    }
     PM->add(createCombineMulAddPass());
 }
 
@@ -1002,7 +1047,7 @@ public:
         void add(Pass *P) { TPM->schedulePass(P); }
     };
     void preparePassManager(PMStack &Stack) override {
-        jl_init_llvm();
+        (void)jl_init_llvm();
         PMTopLevelManager *TPM = Stack.top()->getTopLevelManager();
         TPMAdapter Adapter(TPM);
         addTargetPasses(&Adapter, jl_TargetMachine);
@@ -1021,8 +1066,8 @@ static RegisterPass<JuliaPipeline<2>> Y("julia", "Runs the entire julia pipeline
 static RegisterPass<JuliaPipeline<3>> Z("juliaO3", "Runs the entire julia pipeline (at -O3)", false, false);
 
 extern "C" JL_DLLEXPORT
-void jl_add_optimization_passes(LLVMPassManagerRef PM, int opt_level) {
-    addOptimizationPasses(unwrap(PM), opt_level);
+void jl_add_optimization_passes(LLVMPassManagerRef PM, int opt_level, int lower_intrinsics) {
+    addOptimizationPasses(unwrap(PM), opt_level, lower_intrinsics);
 }
 
 // --- native code info, and dump function to IR and ASM ---
@@ -1031,10 +1076,10 @@ void jl_add_optimization_passes(LLVMPassManagerRef PM, int opt_level) {
 // this is paired with jl_dump_function_ir, jl_dump_method_asm, jl_dump_llvm_asm in particular ways:
 // misuse will leak memory or cause read-after-free
 extern "C" JL_DLLEXPORT
-void *jl_get_llvmf_defn(jl_method_instance_t *linfo, size_t world, char getwrapper, char optimize, const jl_cgparams_t params)
+void *jl_get_llvmf_defn(jl_method_instance_t *mi, size_t world, char getwrapper, char optimize, const jl_cgparams_t params)
 {
-    if (jl_is_method(linfo->def.method) && linfo->def.method->source == NULL &&
-            linfo->def.method->generator == NULL) {
+    if (jl_is_method(mi->def.method) && mi->def.method->source == NULL &&
+            mi->def.method->generator == NULL) {
         // not a generic function
         return NULL;
     }
@@ -1047,28 +1092,36 @@ void *jl_get_llvmf_defn(jl_method_instance_t *linfo, size_t world, char getwrapp
     }
 
     // get the source code for this function
-    jl_code_info_t *src = (jl_code_info_t*)linfo->inferred;
-    JL_GC_PUSH1(&src);
-    if (!src || (jl_value_t*)src == jl_nothing) {
-        src = jl_type_infer(&linfo, world, 0);
-        if (!src && jl_is_method(linfo->def.method))
-            src = linfo->def.method->generator ? jl_code_for_staged(linfo) : (jl_code_info_t*)linfo->def.method->source;
+    jl_value_t *jlrettype = (jl_value_t*)jl_any_type;
+    jl_code_info_t *src = NULL;
+    JL_GC_PUSH2(&src, &jlrettype);
+    if (jl_code_instance_t *codeinst = jl_rettype_inferred(mi, world, world)) {
+        src = (jl_code_info_t*)codeinst->inferred;
+        if ((jl_value_t*)src != jl_nothing && !jl_is_code_info(src) && jl_is_method(mi->def.method))
+            src = jl_uncompress_ast(mi->def.method, codeinst, (jl_array_t*)src);
+        jlrettype = codeinst->rettype;
     }
-    if ((jl_value_t*)src == jl_nothing)
-        src = NULL;
-    if (src && !jl_is_code_info(src) && jl_is_method(linfo->def.method))
-        src = jl_uncompress_ast(linfo->def.method, (jl_array_t*)src);
+    if (!src || (jl_value_t*)src == jl_nothing) {
+        src = jl_type_infer(mi, world, 0);
+        if (src)
+            jlrettype = src->rettype;
+        else if (jl_is_method(mi->def.method)) {
+            src = mi->def.method->generator ? jl_code_for_staged(mi) : (jl_code_info_t*)mi->def.method->source;
+            if (src && !jl_is_code_info(src) && jl_is_method(mi->def.method))
+                src = jl_uncompress_ast(mi->def.method, NULL, (jl_array_t*)src);
+        }
+        // TODO: use mi->uninferred
+    }
 
-    // emit this function into a new module
+    // emit this function into a new llvm module
     if (src && jl_is_code_info(src)) {
         jl_codegen_params_t output;
         output.world = world;
         output.params = &params;
         std::unique_ptr<Module> m;
         jl_llvm_functions_t decls;
-        jl_value_t *rettype;
         JL_LOCK(&codegen_lock);
-        std::tie(m, decls, rettype) = jl_compile_linfo1(linfo, src, output);
+        std::tie(m, decls) = jl_emit_code(mi, src, jlrettype, output);
 
         Function *F = NULL;
         if (m) {
@@ -1091,7 +1144,7 @@ void *jl_get_llvmf_defn(jl_method_instance_t *linfo, size_t world, char getwrapp
             return F;
     }
 
-    const char *mname = name_from_method_instance(linfo);
+    const char *mname = name_from_method_instance(mi);
     jl_errorf("unable to compile source for function %s", mname);
 }
 
@@ -1147,11 +1200,17 @@ jl_value_t *jl_dump_llvm_asm(void *F, const char* asm_variant, const char *debug
                 TM->getTargetTriple(), OutputAsmDialect, MAI, MII, MRI);
             MCAsmBackend *MAB = TM->getTarget().createMCAsmBackend(
                 STI, MRI, TM->Options.MCOptions);
-            auto FOut = llvm::make_unique<formatted_raw_ostream>(asmfile);
             MCCodeEmitter *MCE = nullptr;
+            auto FOut = llvm::make_unique<formatted_raw_ostream>(asmfile);
             std::unique_ptr<MCStreamer> S(TM->getTarget().createAsmStreamer(
                 *Context, std::move(FOut), true,
-                true, InstPrinter, MCE, MAB, false));
+                true, InstPrinter,
+#if JL_LLVM_VERSION >= 70000
+                std::unique_ptr<MCCodeEmitter>(MCE), std::unique_ptr<MCAsmBackend>(MAB),
+#else
+                MCE, MAB,
+#endif
+                false));
             AsmPrinter *Printer =
                 TM->getTarget().createAsmPrinter(*TM, std::move(S));
             if (Printer) {

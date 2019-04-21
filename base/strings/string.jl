@@ -102,7 +102,7 @@ end
 function ==(a::String, b::String)
     pointer_from_objref(a) == pointer_from_objref(b) && return true
     al = sizeof(a)
-    return al == sizeof(b) && 0 == ccall(:memcmp, Int32, (Ptr{UInt8}, Ptr{UInt8}, UInt), a, b, al)
+    return al == sizeof(b) && 0 == ccall(:memcmp, Int32, (Ptr{UInt8}, Ptr{UInt8}, UInt), a, b, al % UInt)
 end
 
 typemin(::Type{String}) = ""
@@ -294,6 +294,13 @@ end
 ## overload methods for efficiency ##
 
 isvalid(s::String, i::Int) = checkbounds(Bool, s, i) && thisind(s, i) == i
+
+function isascii(s::String)
+    @inbounds for i = 1:ncodeunits(s)
+        codeunit(s, i) >= 0x80 && return false
+    end
+    return true
+end
 
 """
     repeat(c::AbstractChar, r::Integer) -> String

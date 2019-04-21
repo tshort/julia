@@ -42,6 +42,10 @@ using llvm_file_magic = file_magic;
 #include <cstdio>
 #include "julia_assert.h"
 
+#ifdef _OS_DARWIN_
+#include <CoreFoundation/CoreFoundation.h>
+#endif
+
 typedef object::SymbolRef SymRef;
 
 // Any function that acquires this lock must be either a unmanaged thread
@@ -68,7 +72,7 @@ struct ObjectInfo {
 // Maintain a mapping of unrealized function names -> linfo objects
 // so that when we see it get emitted, we can add a link back to the linfo
 // that it came from (providing name, type signature, file info, etc.)
-static StringMap<jl_method_instance_t*> linfo_in_flight;
+static StringMap<jl_code_instance_t*> codeinst_in_flight;
 static std::string mangle(const std::string &Name, const DataLayout &DL)
 {
     std::string MangledName;
@@ -78,9 +82,9 @@ static std::string mangle(const std::string &Name, const DataLayout &DL)
     }
     return MangledName;
 }
-void jl_add_linfo_in_flight(StringRef name, jl_method_instance_t *linfo, const DataLayout &DL)
+void jl_add_code_in_flight(StringRef name, jl_code_instance_t *codeinst, const DataLayout &DL)
 {
-    linfo_in_flight[mangle(name, DL)] = linfo;
+    codeinst_in_flight[mangle(name, DL)] = codeinst;
 }
 
 
@@ -183,7 +187,7 @@ public:
                                       RTDyldMemoryManager *memmgr)
     {
         jl_ptls_t ptls = jl_get_ptls_states();
-        // This function modify linfo->fptr in GC safe region.
+        // This function modify codeinst->fptr in GC safe region.
         // This should be fine since the GC won't scan this field.
         int8_t gc_state = jl_gc_safe_enter(ptls);
         uv_rwlock_wrlock(&threadsafe);
@@ -355,14 +359,14 @@ public:
                    (uint8_t*)(uintptr_t)Addr, (size_t)Size, sName,
                    (uint8_t*)(uintptr_t)SectionLoadAddr, (size_t)SectionSize, UnwindData);
 #endif
-            StringMap<jl_method_instance_t*>::iterator linfo_it = linfo_in_flight.find(sName);
-            jl_method_instance_t *linfo = NULL;
-            if (linfo_it != linfo_in_flight.end()) {
-                linfo = linfo_it->second;
-                linfo_in_flight.erase(linfo_it);
+            StringMap<jl_code_instance_t*>::iterator codeinst_it = codeinst_in_flight.find(sName);
+            jl_code_instance_t *codeinst = NULL;
+            if (codeinst_it != codeinst_in_flight.end()) {
+                codeinst = codeinst_it->second;
+                codeinst_in_flight.erase(codeinst_it);
             }
-            if (linfo)
-                linfomap[Addr] = std::make_pair(Size, linfo);
+            if (codeinst)
+                linfomap[Addr] = std::make_pair(Size, codeinst->def);
             if (first) {
                 ObjectInfo tmp = {&debugObj,
                     (size_t)SectionSize,
@@ -802,6 +806,9 @@ static objfileentry_t &find_object_file(uint64_t fbase, StringRef fname)
     std::string debuginfopath;
     uint8_t uuid[16], uuid2[16];
     if (isdarwin) {
+        // Hide Darwin symbols (e.g. CoreFoundation) from non-Darwin systems.
+#ifdef _OS_DARWIN_
+
         size_t msize = (size_t)(((uint64_t)-1) - fbase);
         std::unique_ptr<MemoryBuffer> membuf = MemoryBuffer::getMemBuffer(
                 StringRef((const char *)fbase, msize), "", false);
@@ -818,15 +825,71 @@ static objfileentry_t &find_object_file(uint64_t fbase, StringRef fname)
         if (!getObjUUID(morigobj, uuid))
             return entry;
 
-        // On OS X debug symbols are not contained in the dynamic library.
-        // For now we only support .dSYM files in the same directory
-        // as the shared library. In the future we may use DBGCopyFullDSYMURLForUUID from CoreFoundation to make
-        // use of spotlight to find the .dSYM file.
-        size_t sep = fname.rfind('/');
-        debuginfopath = fname;
-        debuginfopath += ".dSYM/Contents/Resources/DWARF/";
-        debuginfopath += fname.substr(sep + 1);
-        objpath = debuginfopath;
+        // On macOS, debug symbols are not contained in the dynamic library.
+        // Use DBGCopyFullDSYMURLForUUID from the private DebugSymbols framework
+        // to make use of spotlight to find the dSYM file. If that fails, lookup
+        // the dSYM file in the same directory as the dynamic library.  TODO: If
+        // the DebugSymbols framework is moved or removed, an alternative would
+        // be to directly query Spotlight for the dSYM bundle.
+
+        typedef CFURLRef (*DBGCopyFullDSYMURLForUUIDfn)(CFUUIDRef, CFURLRef);
+        DBGCopyFullDSYMURLForUUIDfn DBGCopyFullDSYMURLForUUID = NULL;
+
+        // First, try to load the private DebugSymbols framework.
+        CFURLRef dsfmwkurl = CFURLCreateWithFileSystemPath(
+            kCFAllocatorDefault,
+            CFSTR("/System/Library/PrivateFrameworks/DebugSymbols.framework"),
+            kCFURLPOSIXPathStyle, true);
+        CFBundleRef dsfmwkbundle =
+            CFBundleCreate(kCFAllocatorDefault, dsfmwkurl);
+        CFRelease(dsfmwkurl);
+
+        if (dsfmwkbundle) {
+            DBGCopyFullDSYMURLForUUID =
+                (DBGCopyFullDSYMURLForUUIDfn)CFBundleGetFunctionPointerForName(
+                    dsfmwkbundle, CFSTR("DBGCopyFullDSYMURLForUUID"));
+        }
+
+        if (DBGCopyFullDSYMURLForUUID != NULL) {
+            // Prepare UUID and shared object path URL.
+            CFUUIDRef objuuid = CFUUIDCreateWithBytes(
+                kCFAllocatorDefault, uuid[0], uuid[1], uuid[2], uuid[3],
+                uuid[4], uuid[5], uuid[6], uuid[7], uuid[8], uuid[9], uuid[10],
+                uuid[11], uuid[12], uuid[13], uuid[14], uuid[15]);
+            CFURLRef objurl = CFURLCreateFromFileSystemRepresentation(
+                kCFAllocatorDefault, (UInt8 const *)fname.data(),
+                (CFIndex)strlen(fname.data()), FALSE);
+
+            // Call private DBGCopyFullDSYMURLForUUID() to find dSYM.
+            CFURLRef dsympathurl = DBGCopyFullDSYMURLForUUID(objuuid, objurl);
+            CFRelease(objuuid);
+            CFRelease(objurl);
+
+            char objpathcstr[PATH_MAX];
+            if (dsympathurl != NULL &&
+                CFURLGetFileSystemRepresentation(
+                    dsympathurl, true, (UInt8 *)objpathcstr,
+                    (CFIndex)sizeof(objpathcstr))) {
+                // The dSYM was found. Copy its path.
+                debuginfopath = objpathcstr;
+                objpath = debuginfopath;
+                CFRelease(dsympathurl);
+            }
+        }
+
+        if (dsfmwkbundle) {
+            CFRelease(dsfmwkbundle);
+        }
+
+        if (objpath.empty()) {
+            // Fall back to simple path relative to the dynamic library.
+            size_t sep = fname.rfind('/');
+            debuginfopath = fname;
+            debuginfopath += ".dSYM/Contents/Resources/DWARF/";
+            debuginfopath += fname.substr(sep + 1);
+            objpath = debuginfopath;
+        }
+#endif
     }
     else {
         // On Linux systems we need to mmap another copy because of the permissions on the mmap'ed shared library.

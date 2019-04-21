@@ -11,7 +11,6 @@
 #include "llvm/ExecutionEngine/Orc/LambdaResolver.h"
 #include "llvm/ExecutionEngine/Orc/LazyEmittingLayer.h"
 #include "llvm/ExecutionEngine/Orc/RTDyldObjectLinkingLayer.h"
-#include "llvm/ExecutionEngine/ObjectMemoryBuffer.h"
 #include "llvm/ExecutionEngine/JITEventListener.h"
 
 #include <llvm/Target/TargetMachine.h>
@@ -26,7 +25,7 @@ extern bool imaging_mode;
 extern bool standalone_aot_mode;
 
 void addTargetPasses(legacy::PassManagerBase *PM, TargetMachine *TM);
-void addOptimizationPasses(legacy::PassManagerBase *PM, int opt_level, bool dump_native=false);
+void addOptimizationPasses(legacy::PassManagerBase *PM, int opt_level, bool lower_intrinsics=true, bool dump_native=false);
 void jl_finalize_module(std::unique_ptr<Module>  m);
 void jl_merge_module(Module *dest, std::unique_ptr<Module> src);
 
@@ -49,33 +48,38 @@ struct jl_returninfo_t {
     size_t union_minalign;
 };
 
-typedef std::vector<std::tuple<jl_method_instance_t*, jl_returninfo_t::CallingConv, llvm::Function*, jl_value_t*, bool>> jl_codegen_call_targets_t;
-typedef std::tuple<std::unique_ptr<Module>, jl_llvm_functions_t, jl_value_t*> jl_compile_result_t;
+typedef std::vector<std::tuple<jl_code_instance_t*, jl_returninfo_t::CallingConv, llvm::Function*, bool>> jl_codegen_call_targets_t;
+typedef std::tuple<std::unique_ptr<Module>, jl_llvm_functions_t> jl_compile_result_t;
 
 typedef struct {
     // outputs
     jl_codegen_call_targets_t workqueue;
-    std::map<void *, GlobalVariable *> globals;
-    std::map<jl_datatype_t *, DIType *> ditypes;
-    std::map<jl_datatype_t *, Type *> llvmtypes;
+    std::map<void*, GlobalVariable*> globals;
+    std::map<jl_datatype_t*, DIType*> ditypes;
+    std::map<jl_datatype_t*, Type*> llvmtypes;
     // inputs
     size_t world = 0;
     const jl_cgparams_t *params = &jl_default_cgparams;
     bool cache = false;
 } jl_codegen_params_t;
 
-jl_compile_result_t jl_compile_linfo1(
-        jl_method_instance_t *li,
+jl_compile_result_t jl_emit_code(
+        jl_method_instance_t *mi,
+        jl_code_info_t *src,
+        jl_value_t *jlrettype,
+        jl_codegen_params_t &params);
+
+jl_compile_result_t jl_emit_codeinst(
+        jl_code_instance_t *codeinst,
         jl_code_info_t *src,
         jl_codegen_params_t &params);
 
 void jl_compile_workqueue(
-    std::map<jl_method_instance_t *, jl_compile_result_t> &emitted,
+    std::map<jl_code_instance_t*, jl_compile_result_t> &emitted,
     jl_codegen_params_t &params);
 
 Function *jl_cfunction_object(jl_function_t *f, jl_value_t *rt, jl_tupletype_t *argt,
     jl_codegen_params_t &params);
-
 
 // Connect Modules via prototypes, each owned by module `M`
 static inline GlobalVariable *global_proto(GlobalVariable *G, Module *M = NULL)
@@ -138,7 +142,18 @@ typedef JITSymbol JL_JITSymbol;
 // `JITEvaluatedSymbol`. However, we only use this type when a JITSymbol
 // is expected.
 typedef JITSymbol JL_SymbolInfo;
+
+#if JL_LLVM_VERSION >= 70000
+using RTDyldObjHandleT = orc::VModuleKey;
+#else
 using RTDyldObjHandleT = orc::RTDyldObjectLinkingLayerBase::ObjHandleT;
+#endif
+
+#if JL_LLVM_VERSION >= 70000
+using CompilerResultT = std::unique_ptr<llvm::MemoryBuffer>;
+#else
+using CompilerResultT = object::OwningBinary<object::ObjectFile>;
+#endif
 
 class JuliaOJIT {
     // Custom object emission notification handler for the JuliaOJIT
@@ -146,10 +161,10 @@ class JuliaOJIT {
     public:
         DebugObjectRegistrar(JuliaOJIT &JIT);
         template <typename ObjSetT, typename LoadResult>
-        void operator()(RTDyldObjHandleT H, const ObjSetT &Objects, const LoadResult &LOS);
+        void operator()(RTDyldObjHandleT H, const ObjSetT &Object, const LoadResult &LOS);
     private:
         template <typename ObjT, typename LoadResult>
-        void registerObject(RTDyldObjHandleT H, const ObjT &Object, const LoadResult &LO);
+        void registerObject(RTDyldObjHandleT H, const ObjT &Obj, const LoadResult &LO);
         std::vector<object::OwningBinary<object::ObjectFile>> SavedObjects;
         std::unique_ptr<JITEventListener> JuliaListener;
         JuliaOJIT &JIT;
@@ -159,7 +174,7 @@ class JuliaOJIT {
         CompilerT(JuliaOJIT *pjit)
             : jit(*pjit)
         {}
-        object::OwningBinary<object::ObjectFile> operator()(Module &M);
+        CompilerResultT operator()(Module &M);
     private:
         JuliaOJIT &jit;
     };
@@ -167,7 +182,11 @@ class JuliaOJIT {
 public:
     typedef orc::RTDyldObjectLinkingLayer ObjLayerT;
     typedef orc::IRCompileLayer<ObjLayerT,CompilerT> CompileLayerT;
+    #if JL_LLVM_VERSION >= 70000
+    typedef orc::VModuleKey ModuleHandleT;
+    #else
     typedef CompileLayerT::ModuleHandleT ModuleHandleT;
+    #endif
     typedef StringMap<void*> SymbolTableT;
     typedef object::OwningBinary<object::ObjectFile> OwningObj;
 
@@ -184,9 +203,10 @@ public:
     void removeModule(ModuleHandleT H);
     JL_JITSymbol findSymbol(const std::string &Name, bool ExportedSymbolsOnly);
     JL_JITSymbol findUnmangledSymbol(const std::string Name);
+    JL_JITSymbol resolveSymbol(const std::string& Name);
     uint64_t getGlobalValueAddress(const std::string &Name);
     uint64_t getFunctionAddress(const std::string &Name);
-    StringRef getFunctionAtAddress(uint64_t Addr, jl_method_instance_t *li);
+    StringRef getFunctionAtAddress(uint64_t Addr, jl_code_instance_t *codeinst);
     const DataLayout& getDataLayout() const;
     const Triple& getTargetTriple() const;
 private:
@@ -203,8 +223,15 @@ private:
     MCContext *Ctx;
     std::shared_ptr<RTDyldMemoryManager> MemMgr;
     DebugObjectRegistrar registrar;
+
+#if JL_LLVM_VERSION >= 70000
+    llvm::orc::ExecutionSession ES;
+    std::shared_ptr<llvm::orc::SymbolResolver> SymbolResolver;
+#endif
+
     ObjLayerT ObjectLayer;
     CompileLayerT CompileLayer;
+
     SymbolTableT GlobalSymbolTable;
     SymbolTableT LocalSymbolTable;
     DenseMap<void*, StringRef> ReverseLocalSymbolTable;

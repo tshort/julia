@@ -956,7 +956,7 @@ end
 # but which also means we should still be storing the inference result from inferring the cycle
 f21653() = f21653()
 @test code_typed(f21653, Tuple{}, optimize=false)[1] isa Pair{CodeInfo, typeof(Union{})}
-@test which(f21653, ()).specializations.func.rettype === Union{}
+@test which(f21653, ()).specializations.func.cache.rettype === Union{}
 
 # issue #22290
 f22290() = return 3
@@ -1086,27 +1086,25 @@ function get_linfo(@nospecialize(f), @nospecialize(t))
         throw(ArgumentError("argument is not a generic function"))
     end
     # get the MethodInstance for the method match
-    world = typemax(UInt)
     meth = which(f, t)
     t = Base.to_tuple_type(t)
     ft = isa(f, Type) ? Type{f} : typeof(f)
     tt = Tuple{ft, t.parameters...}
-    precompile(tt)
+    precompile(tt) # does inference (calls jl_type_infer) on this signature
     (ti, env) = ccall(:jl_type_intersection_with_env, Ref{Core.SimpleVector}, (Any, Any), tt, meth.sig)
-    meth = Base.func_for_method_checked(meth, tt, env)
     return ccall(:jl_specializations_get_linfo, Ref{Core.MethodInstance},
-                 (Any, Any, Any, UInt), meth, tt, env, world)
+                 (Any, Any, Any), meth, tt, env)
 end
 
 function test_const_return(@nospecialize(f), @nospecialize(t), @nospecialize(val))
-    linfo = get_linfo(f, t)
+    linfo = Core.Compiler.inf_for_methodinstance(get_linfo(f, t), Core.Compiler.get_world_counter())::Core.CodeInstance
     # If coverage is not enabled, make the check strict by requiring constant ABI
     # Otherwise, check the typed AST to make sure we return a constant.
     if Base.JLOptions().code_coverage == 0
         @test Core.Compiler.invoke_api(linfo) == 2
     end
     if Core.Compiler.invoke_api(linfo) == 2
-        @test linfo.inferred_const == val
+        @test linfo.rettype_const == val
         return
     end
     ct = code_typed(f, t)
@@ -1163,8 +1161,8 @@ test_const_return(()->sizeof(1), Tuple{}, sizeof(Int))
 test_const_return(()->sizeof(DataType), Tuple{}, sizeof(DataType))
 test_const_return(()->sizeof(1 < 2), Tuple{}, 1)
 test_const_return(()->fieldtype(Dict{Int64,Nothing}, :age), Tuple{}, UInt)
-@eval test_const_return(()->Core.sizeof($(Array{Int,0}(undef))), Tuple{}, sizeof(Int))
-@eval test_const_return(()->Core.sizeof($(Matrix{Float32}(undef, 2, 2))), Tuple{}, 4 * 2 * 2)
+test_const_return(@eval(()->Core.sizeof($(Array{Int,0}(undef)))), Tuple{}, sizeof(Int))
+test_const_return(@eval(()->Core.sizeof($(Matrix{Float32}(undef, 2, 2)))), Tuple{}, 4 * 2 * 2)
 
 # Make sure Core.sizeof with a ::DataType as inferred input type is inferred but not constant.
 function sizeof_typeref(typeref)
@@ -1338,13 +1336,25 @@ let egal_tfunc
     @test egal_tfunc(Union{Int64, Float64}, AbstractArray) === Const(false)
 end
 
-using Core.Compiler: PartialTuple, nfields_tfunc, sizeof_tfunc, sizeof_nothrow
-let PT = PartialTuple(Tuple{Int64,UInt64}, Any[Const(10, false), UInt64])
+using Core.Compiler: PartialStruct, nfields_tfunc, sizeof_tfunc, sizeof_nothrow
+let PT = PartialStruct(Tuple{Int64,UInt64}, Any[Const(10, false), UInt64])
     @test sizeof_tfunc(PT) === Const(16, false)
     @test nfields_tfunc(PT) === Const(2, false)
     @test sizeof_nothrow(PT) === true
 end
 @test sizeof_nothrow(Const(Tuple)) === false
+
+using Core.Compiler: typeof_tfunc
+@test typeof_tfunc(Tuple{Vararg{Int}}) == Type{Tuple{Vararg{Int,N}}} where N
+@test typeof_tfunc(Tuple{Any}) == Type{<:Tuple{Any}}
+@test typeof_tfunc(Type{Array}) === DataType
+@test typeof_tfunc(Type{<:Array}) === DataType
+@test typeof_tfunc(Array{Int}) == Type{Array{Int,N}} where N
+@test typeof_tfunc(AbstractArray{Int}) == Type{<:AbstractArray{Int,N}} where N
+@test typeof_tfunc(Union{<:T, <:Real} where T<:Complex) == Union{Type{Complex{T}} where T<:Real, Type{<:Real}}
+
+f_typeof_tfunc(x) = typeof(x)
+@test Base.return_types(f_typeof_tfunc, (Union{<:T, Int} where T<:Complex,)) == Any[Union{Type{Int}, Type{Complex{T}} where T<:Real}]
 
 function f23024(::Type{T}, ::Int) where T
     1 + 1
@@ -1380,7 +1390,7 @@ gg13183(x::X...) where {X} = (_false13183 ? gg13183(x, x) : 0)
 
 # test the external OptimizationState constructor
 let linfo = get_linfo(Base.convert, Tuple{Type{Int64}, Int32}),
-    world = typemax(UInt),
+    world = UInt(23) # some small-numbered world that should be valid
     opt = Core.Compiler.OptimizationState(linfo, Core.Compiler.Params(world))
     # make sure the state of the properties look reasonable
     @test opt.src !== linfo.def.source
@@ -1388,8 +1398,8 @@ let linfo = get_linfo(Base.convert, Tuple{Type{Int64}, Int32}),
     @test opt.src.ssavaluetypes isa Vector{Any}
     @test !opt.src.inferred
     @test opt.mod === Base
-    @test opt.max_valid === typemax(UInt)
-    @test opt.min_valid === Core.Compiler.min_world(opt.linfo) > 2
+    @test opt.max_valid === Core.Compiler.get_world_counter()
+    @test opt.min_valid === Core.Compiler.min_world(opt.src) === UInt(1)
     @test opt.nargs == 3
 end
 
@@ -2246,3 +2256,95 @@ call_ntuple(a, b) = my_ntuple(i->(a+b; i), Val(4))
 
 @generated unionall_sig_generated(::Vector{T}, b::Vector{S}) where {T, S} = :($b)
 @test length(code_typed(unionall_sig_generated, Tuple{Any, Vector{Int}})) == 1
+
+# Test that we don't limit recursions on the number of arguments, even if the
+# arguments themselves are getting more complex
+f_incr(x::Tuple, y::Tuple, args...) = f_incr((x, y), args...)
+f_incr(x::Tuple) = x
+@test @inferred(f_incr((), (), (), (), (), (), (), ())) ==
+    ((((((((), ()), ()), ()), ()), ()), ()), ())
+
+# Test PartialStruct for closures
+@noinline use30783(x) = nothing
+function foo30783(b)
+    a = 1
+    f = ()->(use30783(b); Val(a))
+    f()
+end
+@test @inferred(foo30783(2)) == Val(1)
+
+# PartialStruct tmerge
+using Core.Compiler: PartialStruct, tmerge, Const, ⊑
+struct FooPartial
+    a::Int
+    b::Int
+    c::Int
+end
+let PT1 = PartialStruct(FooPartial, Any[Const(1), Const(2), Int]),
+    PT2 = PartialStruct(FooPartial, Any[Const(1), Int, Int]),
+    PT3 = PartialStruct(FooPartial, Any[Const(1), Int, Const(3)])
+
+    @test PT1 ⊑ PT2
+    @test !(PT1 ⊑ PT3) && !(PT2 ⊑ PT1)
+    let (==) = (a, b)->(a ⊑ b && b ⊑ a)
+        @test tmerge(PT1, PT3) == PT2
+    end
+end
+
+# issue 31164
+struct NoInit31164
+    a::Int
+    b::Any
+    NoInit31164(a::Int) = new(a)
+    NoInit31164(a::Int, b) = new(a, b)
+end
+
+@eval function foo31164(b, x)
+    if b
+       a = NoInit31164(1, x)
+    else
+       a = $(NoInit31164(1))
+    end
+    return a
+end
+
+@test_nowarn code_typed(foo31164, Tuple{Bool, Int}; optimize=false)
+
+# there are errors when these functions are defined inside the @testset
+f28762(::Type{<:AbstractArray{T}}) where {T} = T
+f28762(::Type{<:AbstractArray}) = Any
+g28762(::Type{X}) where {X} = Array{eltype(X)}(undef, 0)
+h28762(::Type{X}) where {X} = Array{f28762(X)}(undef, 0)
+
+@testset "@inferred bug from #28762" begin
+    # this works since Julia 1.1
+    @test (@inferred eltype(Array)) == Any
+    @test (@inferred f28762(Array)) == Any
+    @inferred g28762(Array{Int})
+    @inferred h28762(Array{Int})
+    @inferred g28762(Array)
+    @inferred h28762(Array)
+end
+
+# issue #31663
+module I31663
+abstract type AbstractNode end
+
+struct Node{N1<:AbstractNode, N2<:AbstractNode} <: AbstractNode
+    a::N1
+    b::N2
+end
+
+struct Leaf <: AbstractNode
+end
+
+function gen_nodes(qty::Integer) :: AbstractNode
+    @assert qty > 0
+    result = Leaf()
+    for i in 1:qty
+        result = Node(result, Leaf())
+    end
+    return result
+end
+end
+@test count(==('}'), string(I31663.gen_nodes(50))) == 1275

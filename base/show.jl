@@ -91,8 +91,8 @@ function show(io::IO, ::MIME"text/plain", t::AbstractDict{K,V}) where {K,V}
         rows -= 1 # Subtract the summary
 
         # determine max key width to align the output, caching the strings
-        ks = Vector{AbstractString}(undef, min(rows, length(t)))
-        vs = Vector{AbstractString}(undef, min(rows, length(t)))
+        ks = Vector{String}(undef, min(rows, length(t)))
+        vs = Vector{String}(undef, min(rows, length(t)))
         keylen = 0
         vallen = 0
         for (i, (k, v)) in enumerate(t)
@@ -326,7 +326,10 @@ show(x) = show(stdout::IO, x)
 
 show(io::IO, @nospecialize(x)) = show_default(io, x)
 
-function show_default(io::IO, @nospecialize(x))
+# avoid inferring show_default on the type of `x`
+show_default(io::IO, @nospecialize(x)) = _show_default(io, inferencebarrier(x))
+
+function _show_default(io::IO, @nospecialize(x))
     t = typeof(x)::DataType
     show(io, t)
     print(io, '(')
@@ -398,6 +401,7 @@ function show(io::IO, x::Core.IntrinsicFunction)
 end
 
 show(io::IO, ::Core.TypeofBottom) = print(io, "Union{}")
+show(io::IO, ::MIME"text/plain", ::Core.TypeofBottom) = print(io, "Union{}")
 
 function print_without_params(@nospecialize(x))
     if isa(x,UnionAll)
@@ -563,7 +567,7 @@ show_supertypes(typ::DataType) = show_supertypes(stdout, typ)
 """
     @show
 
-Show an expression and result, returning the result.
+Show an expression and result, returning the result. See also [`show`](@ref).
 """
 macro show(exs...)
     blk = Expr(:block)
@@ -607,11 +611,10 @@ function gettypeinfos(io::IO, p::Pair)
 end
 
 function show(io::IO, p::Pair)
-    iocompact = IOContext(io, :compact => get(io, :compact, true))
-    isdelimited(io, p) && return show_default(iocompact, p)
+    isdelimited(io, p) && return show_default(io, p)
     typeinfos = gettypeinfos(io, p)
     for i = (1, 2)
-        io_i = IOContext(iocompact, :typeinfo => typeinfos[i])
+        io_i = IOContext(io, :typeinfo => typeinfos[i])
         isdelimited(io_i, p[i]) || print(io, "(")
         show(io_i, p[i])
         isdelimited(io_i, p[i]) || print(io, ")")
@@ -629,7 +632,6 @@ end
 
 function sourceinfo_slotnames(src::CodeInfo)
     slotnames = src.slotnames
-    isa(slotnames, Array) || return String[]
     names = Dict{String,Int}()
     printnames = Vector{String}(undef, length(slotnames))
     for i in eachindex(slotnames)
@@ -1120,7 +1122,7 @@ function show_unquoted(io::IO, ex::Expr, indent::Int, prec::Int)
             item = args[1]
             # field
             field = unquoted(args[2])
-            parens = !is_quoted(item) && !(item isa Symbol && isidentifier(item))
+            parens = !is_quoted(item) && !(item isa Symbol && isidentifier(item)) && !Meta.isexpr(item, :(.))
             parens && print(io, '(')
             show_unquoted(io, item, indent)
             parens && print(io, ')')
@@ -1579,6 +1581,7 @@ module IRShow
     using Core.IR
     import ..Base
     import .Compiler: IRCode, ReturnNode, GotoIfNot, CFG, scan_ssa_use!, Argument, isexpr, compute_basic_blocks, block_for_inst
+    Base.getindex(r::Compiler.StmtRange, ind::Integer) = Compiler.getindex(r, ind)
     Base.size(r::Compiler.StmtRange) = Compiler.size(r)
     Base.first(r::Compiler.StmtRange) = Compiler.first(r)
     Base.last(r::Compiler.StmtRange) = Compiler.last(r)
@@ -1807,10 +1810,9 @@ end
 function alignment(io::IO, x::Pair)
     s = sprint(show, x, context=io, sizehint=0)
     if !isdelimited(io, x) # i.e. use "=>" for display
-        iocompact = IOContext(io, :compact => get(io, :compact, true),
-                                  :typeinfo => gettypeinfos(io, x)[1])
-        left = length(sprint(show, x.first, context=iocompact, sizehint=0))
-        left += 2 * !isdelimited(iocompact, x.first) # for parens around p.first
+        ctx = IOContext(io, :typeinfo => gettypeinfos(io, x)[1])
+        left = length(sprint(show, x.first, context=ctx, sizehint=0))
+        left += 2 * !isdelimited(ctx, x.first) # for parens around p.first
         left += !get(io, :compact, false) # spaces are added around "=>"
         (left+1, length(s)-left-1) # +1 for the "=" part of "=>"
     else

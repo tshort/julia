@@ -33,6 +33,9 @@ mutable struct AAA
 end
 @noinline ssum(x) = x.aaa + x.bbb
 fstruct(x) = ssum(AAA(x, 99))
+# @show fstruct(10)
+# @show llvmmod(irgen(fstruct, Tuple{Int}))
+# @show @jlrun fstruct(10)
 @test fstruct(10) == @jlrun fstruct(10)
 
 module ZZ

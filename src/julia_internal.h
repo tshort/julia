@@ -4,6 +4,7 @@
 #define JL_INTERNAL_H
 
 #include "options.h"
+#include "locks.h"
 #include <uv.h>
 #if !defined(_MSC_VER) && !defined(__MINGW32__)
 #include <unistd.h>
@@ -107,6 +108,16 @@ static inline void jl_assume_(int cond)
 #ifndef JL_USE_IFUNC
 #  define JL_USE_IFUNC 0
 #endif
+
+// If this is detected in a backtrace of segfault, it means the functions
+// that use this value must be reworked into their async form with cb arg
+// provided and with JL_UV_LOCK used around the calls
+static uv_loop_t *const unused_uv_loop_arg = (uv_loop_t *)0xBAD10;
+
+extern jl_mutex_t jl_uv_mutex;
+extern int jl_uv_n_waiters;
+void JL_UV_LOCK(void);
+#define JL_UV_UNLOCK() JL_UNLOCK(&jl_uv_mutex)
 
 #ifdef __cplusplus
 extern "C" {
@@ -316,10 +327,16 @@ jl_svec_t *jl_perm_symsvec(size_t n, ...);
 jl_value_t *jl_gc_realloc_string(jl_value_t *s, size_t sz);
 JL_DLLEXPORT void *jl_gc_counted_malloc(size_t sz);
 
-jl_code_info_t *jl_type_infer(jl_method_instance_t **pmeth JL_ROOTS_TEMPORARILY, size_t world, int force);
-jl_callptr_t jl_generate_fptr(jl_method_instance_t **pmeth, size_t world);
-jl_callptr_t jl_generate_fptr_for_unspecialized(jl_method_instance_t *unspec);
-jl_callptr_t jl_compile_method_internal(jl_method_instance_t **pmeth, size_t world);
+JL_DLLEXPORT void JL_NORETURN jl_throw_out_of_memory_error(void);
+
+jl_code_info_t *jl_type_infer(jl_method_instance_t *li, size_t world, int force);
+jl_code_instance_t *jl_compile_method_internal(jl_method_instance_t *meth, size_t world);
+jl_code_instance_t *jl_generate_fptr(jl_method_instance_t *mi, size_t world);
+void jl_generate_fptr_for_unspecialized(jl_code_instance_t *unspec);
+JL_DLLEXPORT jl_code_instance_t *jl_get_method_inferred(
+        jl_method_instance_t *mi, jl_value_t *rettype,
+        size_t min_world, size_t max_world);
+jl_method_instance_t *jl_get_unspecialized(jl_method_instance_t *method);
 
 JL_DLLEXPORT int jl_compile_hint(jl_tupletype_t *types);
 jl_code_info_t *jl_code_for_interpreter(jl_method_instance_t *lam);
@@ -485,7 +502,7 @@ void jl_init_stack_limits(int ismaster, void **stack_hi, void **stack_lo);
 void jl_init_root_task(void *stack_lo, void *stack_hi);
 void jl_init_serializer(void);
 void jl_gc_init(void);
-void jl_init_signal_async(void);
+void jl_init_uv(void);
 void jl_init_debuginfo(void);
 void jl_init_thread_heap(jl_ptls_t ptls);
 
@@ -497,7 +514,6 @@ extern ssize_t jl_tls_offset;
 extern const int jl_tls_elf_support;
 void jl_init_threading(void);
 void jl_start_threads(void);
-void jl_shutdown_threading(void);
 
 // Whether the GC is running
 extern char *jl_safepoint_pages;
@@ -569,25 +585,27 @@ void jl_dump_native(void *native_code,
         const char *bc_fname, const char *unopt_bc_fname, const char *obj_fname,
         const char *sysimg_data, size_t sysimg_len);
 int32_t jl_get_llvm_gv(void *native_code, jl_value_t *p) JL_NOTSAFEPOINT;
-void jl_get_function_id(void *native_code, jl_method_instance_t *linfo,
+void jl_get_function_id(void *native_code, jl_code_instance_t *ncode,
         int32_t *func_idx, int32_t *specfunc_idx);
+
 // the first argument to jl_idtable_rehash is used to return a value
 // make sure it is rooted if it is used after the function returns
 JL_DLLEXPORT jl_array_t *jl_idtable_rehash(jl_array_t *a, size_t newsz);
 
 JL_DLLEXPORT jl_methtable_t *jl_new_method_table(jl_sym_t *name, jl_module_t *module);
-jl_method_instance_t *jl_get_specialization1(jl_tupletype_t *types, size_t world, int mt_cache);
+jl_method_instance_t *jl_get_specialization1(jl_tupletype_t *types, size_t world, size_t *min_valid, size_t *max_valid, int mt_cache);
 JL_DLLEXPORT int jl_has_call_ambiguities(jl_value_t *types, jl_method_t *m);
 jl_method_instance_t *jl_get_specialized(jl_method_t *m, jl_value_t *types, jl_svec_t *sp);
-int jl_is_rettype_inferred(jl_method_instance_t *li);
+JL_DLLEXPORT jl_code_instance_t *jl_rettype_inferred(jl_method_instance_t *li, size_t min_world, size_t max_world);
+jl_code_instance_t *jl_method_compiled(jl_method_instance_t *mi, size_t world);
 JL_DLLEXPORT jl_value_t *jl_methtable_lookup(jl_methtable_t *mt, jl_value_t *type, size_t world);
 JL_DLLEXPORT jl_method_instance_t *jl_specializations_get_linfo(
-    jl_method_t *m JL_PROPAGATES_ROOT, jl_value_t *type, jl_svec_t *sparams, size_t world);
+    jl_method_t *m, jl_value_t *type, jl_svec_t *sparams);
 JL_DLLEXPORT void jl_method_instance_add_backedge(jl_method_instance_t *callee, jl_method_instance_t *caller);
 JL_DLLEXPORT void jl_method_table_add_backedge(jl_methtable_t *mt, jl_value_t *typ, jl_value_t *caller);
 
 uint32_t jl_module_next_counter(jl_module_t *m);
-void jl_fptr_to_llvm(void *fptr, jl_method_instance_t *lam, int spec_abi);
+void jl_fptr_to_llvm(void *fptr, jl_code_instance_t *codeinst, int spec_abi);
 jl_tupletype_t *arg_type_tuple(jl_value_t **args, size_t nargs);
 
 int jl_has_meta(jl_array_t *body, jl_sym_t *sym);
@@ -711,6 +729,24 @@ void jl_copy_excstack(jl_excstack_t *dest, jl_excstack_t *src) JL_NOTSAFEPOINT;
 // timers
 // Returns time in nanosec
 JL_DLLEXPORT uint64_t jl_hrtime(void);
+
+// congruential random number generator
+// for a small amount of thread-local randomness
+// we could just use libc:`rand()`, but we want to ensure this is fast
+STATIC_INLINE void seed_cong(uint64_t *seed)
+{
+    *seed = rand();
+}
+STATIC_INLINE void unbias_cong(uint64_t max, uint64_t *unbias)
+{
+    *unbias = UINT64_MAX - ((UINT64_MAX % max) + 1);
+}
+STATIC_INLINE uint64_t cong(uint64_t max, uint64_t unbias, uint64_t *seed)
+{
+    while ((*seed = 69069 * (*seed) + 362437) > unbias)
+        ;
+    return *seed % max;
+}
 
 // libuv stuff:
 JL_DLLEXPORT extern void *jl_dl_handle;
@@ -836,6 +872,8 @@ JL_DLLEXPORT jl_value_t *jl_arraylen(jl_value_t *a);
 int jl_array_store_unboxed(jl_value_t *el_type);
 JL_DLLEXPORT jl_value_t *(jl_array_data_owner)(jl_array_t *a);
 JL_DLLEXPORT int jl_array_isassigned(jl_array_t *a, size_t i);
+
+JL_DLLEXPORT void jl_uv_stop(uv_loop_t* loop);
 
 // -- synchronization utilities -- //
 
@@ -1005,8 +1043,9 @@ extern jl_sym_t *structtype_sym;   extern jl_sym_t *foreigncall_sym;
 extern jl_sym_t *global_sym; extern jl_sym_t *list_sym;
 extern jl_sym_t *dot_sym;    extern jl_sym_t *newvar_sym;
 extern jl_sym_t *boundscheck_sym; extern jl_sym_t *inbounds_sym;
+extern jl_sym_t *aliasscope_sym; extern jl_sym_t *popaliasscope_sym;
 extern jl_sym_t *copyast_sym; extern jl_sym_t *cfunction_sym;
-extern jl_sym_t *pure_sym; extern jl_sym_t *simdloop_sym;
+extern jl_sym_t *pure_sym; extern jl_sym_t *loopinfo_sym;
 extern jl_sym_t *meta_sym; extern jl_sym_t *inert_sym;
 extern jl_sym_t *polly_sym; extern jl_sym_t *unused_sym;
 extern jl_sym_t *static_parameter_sym; extern jl_sym_t *inline_sym;

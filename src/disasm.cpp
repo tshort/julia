@@ -813,11 +813,11 @@ static void jl_dump_asm_internal(
     MCInstPrinter *IP =
         TheTarget->createMCInstPrinter(TheTriple, OutputAsmVariant, *MAI, *MCII, *MRI);
     //IP->setPrintImmHex(true); // prefer hex or decimal immediates
-    MCCodeEmitter *CE = 0;
-    MCAsmBackend *MAB = 0;
+    MCCodeEmitter *CE = nullptr;
+    MCAsmBackend *MAB = nullptr;
+    MCTargetOptions Options;
     if (ShowEncoding) {
         CE = TheTarget->createMCCodeEmitter(*MCII, *MRI, Ctx);
-        MCTargetOptions Options;
         MAB = TheTarget->createMCAsmBackend(*STI, *MRI, Options);
     }
 
@@ -828,7 +828,13 @@ static void jl_dump_asm_internal(
     auto ustream = llvm::make_unique<formatted_raw_ostream>(rstream);
     Streamer.reset(TheTarget->createAsmStreamer(Ctx, std::move(ustream), /*asmverbose*/true,
                                                 /*useDwarfDirectory*/ true,
-                                                IP, CE, MAB, /*ShowInst*/ false));
+                                                IP,
+#if JL_LLVM_VERSION >= 70000
+                                                std::unique_ptr<MCCodeEmitter>(CE), std::unique_ptr<MCAsmBackend>(MAB),
+#else
+                                                CE, MAB,
+#endif
+                                                /*ShowInst*/ false));
     Streamer->InitSections(true);
 
     // Make the MemoryObject wrapper

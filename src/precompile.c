@@ -243,36 +243,32 @@ static void _compile_all_deq(jl_array_t *found)
 {
     int found_i, found_l = jl_array_len(found);
     jl_printf(JL_STDERR, "found %d uncompiled methods for compile-all\n", (int)found_l);
-    jl_method_instance_t *linfo = NULL;
-    JL_GC_PUSH1(&linfo);
+    jl_method_instance_t *mi = NULL;
+    jl_value_t *src = NULL;
+    JL_GC_PUSH2(&mi, &src);
     for (found_i = 0; found_i < found_l; found_i++) {
         if (found_i % (1 + found_l / 300) == 0 || found_i == found_l - 1) // show 300 progress steps, to show progress without overwhelming log files
             jl_printf(JL_STDERR, " %d / %d\r", found_i + 1, found_l);
         jl_typemap_entry_t *ml = (jl_typemap_entry_t*)jl_array_ptr_ref(found, found_i);
         jl_method_t *m = ml->func.method;
-        if (m->source == NULL)  // TODO: generic implementations of generated functions
+        if (m->source == NULL) // TODO: generic implementations of generated functions
             continue;
-        linfo = m->unspecialized;
-        if (!linfo) {
-            linfo = jl_get_specialized(m, (jl_value_t*)m->sig, jl_emptysvec);
-            m->unspecialized = linfo;
-            jl_gc_wb(m, linfo);
-        }
-
-        if (linfo->invoke != jl_fptr_trampoline)
+        mi = jl_get_unspecialized(mi);
+        assert(mi == m->unspecialized); // make sure we didn't get tricked by a generated function, since we can't handle those
+        jl_code_instance_t *ucache = jl_get_method_inferred(mi, (jl_value_t*)jl_any_type, 1, ~(size_t)0);
+        if (ucache->invoke != NULL)
             continue;
-        // TODO: the `unspecialized` field is not yet world-aware, so we can't store
-        // an inference result there.
-        //src = jl_type_infer(&linfo, jl_world_counter, 1);
-        //m->unspecialized = linfo;
-        //jl_gc_wb(m, linfo);
-        //if (linfo->trampoline != jl_fptr_trampoline)
+        src = m->source;
+        assert(src);
+        // TODO: we could now enable storing inferred function pointers in the `unspecialized` cache
+        //src = jl_type_infer(mi, jl_world_counter, 1);
+        //if (ucache->invoke != NULL)
         //    continue;
 
         // first try to create leaf signatures from the signature declaration and compile those
         _compile_all_union((jl_value_t*)ml->sig);
         // then also compile the generic fallback
-        (void)jl_generate_fptr_for_unspecialized(linfo);
+        jl_generate_fptr_for_unspecialized(ucache);
     }
     JL_GC_POP();
     jl_printf(JL_STDERR, "\n");
@@ -284,10 +280,8 @@ static int compile_all_enq__(jl_typemap_entry_t *ml, void *env)
     // method definition -- compile template field
     jl_method_t *m = ml->func.method;
     if (m->source) {
-        if (!m->unspecialized || m->unspecialized->invoke != jl_fptr_const_return) {
-            // found a method to compile
-            jl_array_ptr_1d_push(found, (jl_value_t*)ml);
-        }
+        // found a method to compile
+        jl_array_ptr_1d_push(found, (jl_value_t*)ml);
     }
     return 1;
 }
@@ -319,22 +313,32 @@ static void jl_compile_all_defs(void)
 
 static int precompile_enq_all_cache__(jl_typemap_entry_t *l, void *closure)
 {
-    jl_method_instance_t *mi = l->func.linfo;
-    if (mi)
-        jl_array_ptr_1d_push((jl_array_t*)closure, (jl_value_t*)mi);
+    jl_array_ptr_1d_push((jl_array_t*)closure, (jl_value_t*)l->func.linfo);
     return 1;
 }
 
 static int precompile_enq_specialization_(jl_typemap_entry_t *l, void *closure)
 {
     jl_method_instance_t *mi = l->func.linfo;
-    if (mi && jl_is_method_instance(mi) &&
-            mi->invoke != jl_fptr_const_return &&
-            (mi->inferred &&
-             mi->inferred != jl_nothing &&
-             jl_ast_flag_inferred((jl_array_t*)mi->inferred) &&
-             !jl_ast_flag_inlineable((jl_array_t*)mi->inferred))) {
-        jl_array_ptr_1d_push((jl_array_t*)closure, (jl_value_t*)mi);
+    assert(jl_is_method_instance(mi));
+    jl_code_instance_t *codeinst = mi->cache;
+    while (codeinst) {
+        int do_compile = 0;
+        if (codeinst->invoke != jl_fptr_const_return) {
+            if (codeinst->inferred && codeinst->inferred != jl_nothing &&
+                jl_ast_flag_inferred((jl_array_t*)codeinst->inferred) &&
+                !jl_ast_flag_inlineable((jl_array_t*)codeinst->inferred)) {
+                do_compile = 1;
+            }
+            else if (codeinst->invoke != NULL) {
+                do_compile = 1;
+            }
+        }
+        if (do_compile) {
+            jl_array_ptr_1d_push((jl_array_t*)closure, (jl_value_t*)mi);
+            return 1;
+        }
+        codeinst = codeinst->next;
     }
     return 1;
 }
@@ -344,8 +348,8 @@ static int precompile_enq_all_specializations__(jl_typemap_entry_t *def, void *c
     jl_method_t *m = def->func.method;
     if (m->name == jl_symbol("__init__") && jl_is_dispatch_tupletype(m->sig)) {
         // ensure `__init__()` gets strongly-hinted, specialized, and compiled
-        jl_array_ptr_1d_push((jl_array_t*)closure,
-            (jl_value_t*)jl_specializations_get_linfo(m, m->sig, jl_emptysvec, jl_world_counter));
+        jl_method_instance_t *mi = jl_specializations_get_linfo(m, m->sig, jl_emptysvec);
+        jl_array_ptr_1d_push((jl_array_t*)closure, (jl_value_t*)mi);
     }
     else {
         jl_typemap_visitor(def->func.method->specializations, precompile_enq_specialization_, closure);
@@ -358,6 +362,8 @@ static void precompile_enq_all_specializations_(jl_methtable_t *mt, void *env)
     jl_typemap_visitor(mt->defs, precompile_enq_all_specializations__, env);
     jl_typemap_visitor(mt->cache, precompile_enq_all_cache__, env);
 }
+
+void jl_compile_now(jl_method_instance_t *mi);
 
 void *jl_precompile(int all)
 {
@@ -374,14 +380,10 @@ void *jl_precompile(int all)
     m2 = jl_alloc_vec_any(0);
     for (size_t i = 0; i < jl_array_len(m); i++) {
         jl_method_instance_t *mi = (jl_method_instance_t*)jl_array_ptr_ref(m, i);
-        if (!jl_isa_compileable_sig((jl_tupletype_t*)mi->specTypes, mi->def.method)) {
-            mi = jl_get_specialization1((jl_tupletype_t*)mi->specTypes, jl_world_counter, 0);
-        }
-        else if (mi->max_world != ~(size_t)0) {
-            if (mi->min_world <= jl_typeinf_world && jl_typeinf_world <= mi->max_world)
-                jl_array_ptr_1d_push(m2, (jl_value_t*)mi);
-            mi = jl_specializations_get_linfo(mi->def.method, mi->specTypes, mi->sparam_vals, jl_world_counter);
-        }
+        size_t min_world = 0;
+        size_t max_world = ~(size_t)0;
+        if (!jl_isa_compileable_sig((jl_tupletype_t*)mi->specTypes, mi->def.method))
+            mi = jl_get_specialization1((jl_tupletype_t*)mi->specTypes, jl_world_counter, &min_world, &max_world, 0);
         if (mi)
             jl_array_ptr_1d_push(m2, (jl_value_t*)mi);
     }

@@ -157,9 +157,11 @@ static void jl_uv_exitcleanup_add(uv_handle_t *handle, struct uv_shutdown_queue 
     struct uv_shutdown_queue_item *item = (struct uv_shutdown_queue_item*)malloc(sizeof(struct uv_shutdown_queue_item));
     item->h = handle;
     item->next = NULL;
+    JL_UV_LOCK();
     if (queue->last) queue->last->next = item;
     if (!queue->first) queue->first = item;
     queue->last = item;
+    JL_UV_UNLOCK();
 }
 
 static void jl_uv_exitcleanup_walk(uv_handle_t *handle, void *arg)
@@ -220,6 +222,9 @@ static void jl_close_item_atexit(uv_handle_t *handle)
 
 JL_DLLEXPORT void jl_atexit_hook(int exitcode)
 {
+    if (jl_all_tls_states == NULL)
+        return;
+
     jl_ptls_t ptls = jl_get_ptls_states();
 
     if (exitcode == 0)
@@ -259,6 +264,7 @@ JL_DLLEXPORT void jl_atexit_hook(int exitcode)
     }
 
     struct uv_shutdown_queue queue = {NULL, NULL};
+    JL_UV_LOCK();
     uv_walk(loop, jl_uv_exitcleanup_walk, &queue);
     struct uv_shutdown_queue_item *item = queue.first;
     if (ptls->current_task != NULL) {
@@ -288,6 +294,7 @@ JL_DLLEXPORT void jl_atexit_hook(int exitcode)
 
     // force libuv to spin until everything has finished closing
     loop->stop_flag = 0;
+    JL_UV_UNLOCK();
     while (uv_run(loop, UV_RUN_DEFAULT)) { }
 
     // TODO: Destroy threads
@@ -658,15 +665,8 @@ void _julia_init(JL_IMAGE_SEARCH rel)
     ios_set_io_wait_func = jl_set_io_wait;
     jl_io_loop = uv_default_loop(); // this loop will internal events (spawning process etc.),
                                     // best to call this first, since it also initializes libuv
-    jl_init_signal_async();
+    jl_init_uv();
     restore_signals();
-
-    jl_resolve_sysimg_location(rel);
-    // loads sysimg if available, and conditionally sets jl_options.cpu_target
-    if (jl_options.image_file)
-        jl_preload_sysimg_so(jl_options.image_file);
-    if (jl_options.cpu_target == NULL)
-        jl_options.cpu_target = "native";
 
     jl_page_size = jl_getpagesize();
     uint64_t total_mem = uv_get_total_memory();
@@ -740,6 +740,13 @@ void _julia_init(JL_IMAGE_SEARCH rel)
 
     jl_init_threading();
 
+    jl_resolve_sysimg_location(rel);
+    // loads sysimg if available, and conditionally sets jl_options.cpu_target
+    if (jl_options.image_file)
+        jl_preload_sysimg_so(jl_options.image_file);
+    if (jl_options.cpu_target == NULL)
+        jl_options.cpu_target = "native";
+
     jl_gc_init();
     jl_gc_enable(0);
     jl_init_types();
@@ -760,8 +767,6 @@ void _julia_init(JL_IMAGE_SEARCH rel)
     }
 
     jl_init_codegen();
-
-    jl_start_threads();
 
     jl_an_empty_vec_any = (jl_value_t*)jl_alloc_vec_any(0);
     jl_init_serializer();
@@ -818,7 +823,20 @@ void _julia_init(JL_IMAGE_SEARCH rel)
     // it does "using Base" if Base is available.
     if (jl_base_module != NULL) {
         jl_add_standard_imports(jl_main_module);
+        // Do initialization needed before starting child threads
+        jl_value_t *f = jl_get_global(jl_base_module, jl_symbol("__preinit_threads__"));
+        if (f) {
+            size_t last_age = ptls->world_age;
+            ptls->world_age = jl_get_world_counter();
+            jl_apply(&f, 1);
+            ptls->world_age = last_age;
+        }
     }
+    else {
+        // nthreads > 1 requires code in Base
+        jl_n_threads = 1;
+    }
+    jl_start_threads();
 
     // This needs to be after jl_start_threads
     if (jl_options.handle_signals == JL_OPTIONS_HANDLE_SIGNALS_ON)
@@ -865,6 +883,8 @@ void jl_init_types2(void) JL_GC_DISABLED
 
 // Basic initialization that doesn't load a system image
 JL_DLLEXPORT void jl_init_basics(void) {
+    // jl_init();
+    return;
     jl_init_timing();
 #ifdef JULIA_ENABLE_THREADING
     // Make sure we finalize the tls callback before starting any threads.
@@ -878,7 +898,133 @@ JL_DLLEXPORT void jl_init_basics(void) {
     ios_set_io_wait_func = jl_set_io_wait;
     jl_io_loop = uv_default_loop(); // this loop will internal events (spawning process etc.),
                                     // best to call this first, since it also initializes libuv
-    jl_init_signal_async();
+    jl_init_uv();
+    restore_signals();
+
+    jl_page_size = jl_getpagesize();
+    uint64_t total_mem = uv_get_total_memory();
+    if (total_mem >= (size_t)-1) {
+        total_mem = (size_t)-1;
+    }
+    jl_arr_xtralloc_limit = total_mem / 100;  // Extra allocation limited to 1% of total RAM
+    jl_prep_sanitizers();
+    void *stack_lo, *stack_hi;
+    jl_init_stack_limits(1, &stack_lo, &stack_hi);
+    jl_dl_handle = jl_load_dynamic_library(NULL, JL_RTLD_DEFAULT, 1);
+#ifdef _OS_WINDOWS_
+    jl_ntdll_handle = jl_dlopen("ntdll.dll", 0); // bypass julia's pathchecking for system dlls
+    jl_kernel32_handle = jl_dlopen("kernel32.dll", 0);
+#if defined(_MSC_VER) && _MSC_VER == 1800
+    jl_crtdll_handle = jl_dlopen("msvcr120.dll", 0);
+#else
+    jl_crtdll_handle = jl_dlopen("msvcrt.dll", 0);
+#endif
+    jl_winsock_handle = jl_dlopen("ws2_32.dll", 0);
+    jl_exe_handle = GetModuleHandleA(NULL);
+    SymSetOptions(SYMOPT_UNDNAME | SYMOPT_DEFERRED_LOADS | SYMOPT_LOAD_LINES);
+    if (!SymInitialize(GetCurrentProcess(), NULL, 1)) {
+        jl_printf(JL_STDERR, "WARNING: failed to initialize stack walk info\n");
+    }
+    needsSymRefreshModuleList = 0;
+    HMODULE jl_dbghelp = (HMODULE) jl_dlopen("dbghelp.dll", 0);
+    if (jl_dbghelp)
+        jl_dlsym(jl_dbghelp, "SymRefreshModuleList", (void **)&hSymRefreshModuleList, 1);
+#else
+    jl_exe_handle = jl_dlopen(NULL, JL_RTLD_NOW);
+#ifdef RTLD_DEFAULT
+    jl_RTLD_DEFAULT_handle = RTLD_DEFAULT;
+#else
+    jl_RTLD_DEFAULT_handle = jl_exe_handle;
+#endif
+#endif
+
+#if defined(JL_USE_INTEL_JITEVENTS)
+    const char *jit_profiling = getenv("ENABLE_JITPROFILING");
+    if (jit_profiling && atoi(jit_profiling)) {
+        jl_using_intel_jitevents = 1;
+    }
+#endif
+
+#if defined(JL_USE_OPROFILE_JITEVENTS)
+    const char *jit_profiling = getenv("ENABLE_JITPROFILING");
+    if (jit_profiling && atoi(jit_profiling)) {
+        jl_using_oprofile_jitevents = 1;
+    }
+#endif
+
+#if defined(JL_USE_PERF_JITEVENTS)
+    const char *jit_profiling = getenv("ENABLE_JITPROFILING");
+    if (jit_profiling && atoi(jit_profiling)) {
+        jl_using_perf_jitevents= 1;
+    }
+#endif
+
+#if defined(__linux__)
+    int ncores = jl_cpu_threads();
+    if (ncores > 1) {
+        cpu_set_t cpumask;
+        CPU_ZERO(&cpumask);
+        for(int i=0; i < ncores; i++) {
+            CPU_SET(i, &cpumask);
+        }
+        sched_setaffinity(0, sizeof(cpu_set_t), &cpumask);
+    }
+#endif
+
+    // jl_init_threading();
+
+    // loads sysimg if available, and conditionally sets jl_options.cpu_target
+    if (jl_options.cpu_target == NULL)
+        jl_options.cpu_target = "native";
+
+    jl_gc_init();
+    jl_gc_enable(0);
+    jl_init_types();
+    jl_init_types2();
+    jl_init_frontend();
+    jl_init_tasks();
+    jl_init_root_task(stack_lo, stack_hi);
+
+#ifdef ENABLE_TIMINGS
+    jl_root_task->timing_stack = jl_root_timing;
+#endif
+
+    init_stdio();
+    // libuv stdio cleanup depends on jl_init_tasks() because JL_TRY is used in jl_atexit_hook()
+
+    // jl_init_codegen();
+
+    jl_an_empty_vec_any = (jl_value_t*)jl_alloc_vec_any(0);
+    jl_init_serializer();
+    jl_init_intrinsic_properties();
+
+    jl_core_module = jl_new_module(jl_symbol("Core"));
+    jl_type_typename->mt->module = jl_core_module;
+    jl_top_module = jl_core_module;
+    jl_init_intrinsic_functions();
+    jl_init_primitives();
+    jl_init_main_module();
+
+    jl_init_box_caches();
+}
+
+
+// Basic initialization that doesn't load a system image
+JL_DLLEXPORT void jl_init_basics_old(void) {
+    jl_init_timing();
+#ifdef JULIA_ENABLE_THREADING
+    // Make sure we finalize the tls callback before starting any threads.
+    jl_get_ptls_states_getter();
+#endif
+    jl_ptls_t ptls = jl_get_ptls_states();
+    (void)ptls; assert(ptls); // make sure early that we have initialized ptls
+    jl_safepoint_init();
+    libsupport_init();
+    htable_new(&jl_current_modules, 0);
+    ios_set_io_wait_func = jl_set_io_wait;
+    jl_io_loop = uv_default_loop(); // this loop will internal events (spawning process etc.),
+                                    // best to call this first, since it also initializes libuv
+    // jl_init_signal_async();
     restore_signals();
 
     // jl_resolve_sysimg_location(rel);
@@ -998,26 +1144,16 @@ static jl_value_t *core(const char *name)
 // fetch references to things defined in boot.jl
 void jl_get_builtin_hooks(void)
 {
-    int t;
-    for (t = 0; t < jl_n_threads; t++) {
-        jl_ptls_t ptls2 = jl_all_tls_states[t];
-        ptls2->root_task->tls = jl_nothing;
-        ptls2->root_task->donenotify = jl_nothing;
-        ptls2->root_task->exception = jl_nothing;
-        ptls2->root_task->result = jl_nothing;
-    }
-
     jl_char_type    = (jl_datatype_t*)core("Char");
     jl_int8_type    = (jl_datatype_t*)core("Int8");
     jl_int16_type   = (jl_datatype_t*)core("Int16");
     jl_uint16_type  = (jl_datatype_t*)core("UInt16");
-
     jl_float16_type = (jl_datatype_t*)core("Float16");
     jl_float32_type = (jl_datatype_t*)core("Float32");
     jl_float64_type = (jl_datatype_t*)core("Float64");
     jl_floatingpoint_type = (jl_datatype_t*)core("AbstractFloat");
-    jl_number_type = (jl_datatype_t*)core("Number");
-    jl_signed_type = (jl_datatype_t*)core("Signed");
+    jl_number_type  = (jl_datatype_t*)core("Number");
+    jl_signed_type  = (jl_datatype_t*)core("Signed");
     jl_datatype_t *jl_unsigned_type = (jl_datatype_t*)core("Unsigned");
     jl_datatype_t *jl_integer_type = (jl_datatype_t*)core("Integer");
     jl_bool_type->super = jl_integer_type;
@@ -1036,19 +1172,17 @@ void jl_get_builtin_hooks(void)
     jl_boundserror_type    = (jl_datatype_t*)core("BoundsError");
     jl_memory_exception    = jl_new_struct_uninit((jl_datatype_t*)core("OutOfMemoryError"));
     jl_readonlymemory_exception = jl_new_struct_uninit((jl_datatype_t*)core("ReadOnlyMemoryError"));
-    jl_typeerror_type = (jl_datatype_t*)core("TypeError");
-
+    jl_typeerror_type      = (jl_datatype_t*)core("TypeError");
 #ifdef SEGV_EXCEPTION
     jl_segv_exception      = jl_new_struct_uninit((jl_datatype_t*)core("SegmentationFault"));
 #endif
+    jl_argumenterror_type  = (jl_datatype_t*)core("ArgumentError");
+    jl_methoderror_type    = (jl_datatype_t*)core("MethodError");
+    jl_loaderror_type      = (jl_datatype_t*)core("LoadError");
+    jl_initerror_type      = (jl_datatype_t*)core("InitError");
 
     jl_weakref_type = (jl_datatype_t*)core("WeakRef");
     jl_vecelement_typename = ((jl_datatype_t*)jl_unwrap_unionall(core("VecElement")))->name;
-
-    jl_argumenterror_type = (jl_datatype_t*)core("ArgumentError");
-    jl_methoderror_type = (jl_datatype_t*)core("MethodError");
-    jl_loaderror_type = (jl_datatype_t*)core("LoadError");
-    jl_initerror_type = (jl_datatype_t*)core("InitError");
 }
 
 void jl_get_builtins(void)
@@ -1061,6 +1195,7 @@ void jl_get_builtins(void)
     jl_builtin_tuple = core("tuple");           jl_builtin_svec = core("svec");
     jl_builtin_getfield = core("getfield");     jl_builtin_setfield = core("setfield!");
     jl_builtin_fieldtype = core("fieldtype");   jl_builtin_arrayref = core("arrayref");
+    jl_builtin_const_arrayref = core("const_arrayref");
     jl_builtin_arrayset = core("arrayset");     jl_builtin_arraysize = core("arraysize");
     jl_builtin_apply_type = core("apply_type"); jl_builtin_applicable = core("applicable");
     jl_builtin_invoke = core("invoke");         jl_builtin__expr = core("_expr");

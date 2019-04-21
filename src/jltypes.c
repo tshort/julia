@@ -101,7 +101,7 @@ jl_datatype_t *jl_methtable_type;
 jl_datatype_t *jl_typemap_entry_type;
 jl_datatype_t *jl_typemap_level_type;
 jl_datatype_t *jl_method_instance_type;
-jl_datatype_t *jl_lambda_type;
+jl_datatype_t *jl_code_instance_type;
 jl_datatype_t *jl_code_info_type;
 jl_datatype_t *jl_module_type;
 jl_datatype_t *jl_errorexception_type;
@@ -1728,13 +1728,14 @@ void jl_init_types(void) JL_GC_DISABLED
     jl_methtable_type->name->mt = jl_new_method_table(jl_methtable_type->name->name, core);
     jl_methtable_type->super = jl_any_type;
     jl_methtable_type->parameters = jl_emptysvec;
-    jl_methtable_type->name->names = jl_perm_symsvec(9, "name", "defs",
+    jl_methtable_type->name->names = jl_perm_symsvec(10, "name", "defs",
                                                      "cache", "max_args",
                                                      "kwsorter", "module",
-                                                     "backedges", "", "");
-    jl_methtable_type->types = jl_svec(9, jl_sym_type, jl_any_type, jl_any_type, jl_any_type/*jl_long*/,
+                                                     "backedges", "", "", "offs");
+    jl_methtable_type->types = jl_svec(10, jl_sym_type, jl_any_type, jl_any_type, jl_any_type/*jl_long*/,
                                        jl_any_type, jl_any_type/*module*/,
-                                       jl_any_type/*any vector*/, jl_any_type/*long*/, jl_any_type/*int32*/);
+                                       jl_any_type/*any vector*/, jl_any_type/*long*/, jl_any_type/*int32*/,
+                                       jl_any_type/*uint8*/);
     jl_methtable_type->uid = jl_assign_type_uid();
     jl_methtable_type->instance = NULL;
     jl_methtable_type->abstract = 0;
@@ -2038,7 +2039,7 @@ void jl_init_types(void) JL_GC_DISABLED
                             jl_array_uint8_type,
                             jl_any_type,
                             jl_any_type,
-                            jl_any_type,
+                            jl_array_symbol_type,
                             jl_array_uint8_type,
                             jl_any_type,
                             jl_any_type,
@@ -2059,9 +2060,9 @@ void jl_init_types(void) JL_GC_DISABLED
                             "module",
                             "file",
                             "line",
+                            "primary_world",
+                            "deleted_world",
                             "sig",
-                            "min_world",
-                            "max_world",
                             "ambig",
                             "specializations",
                             "slot_syms",
@@ -2080,9 +2081,9 @@ void jl_init_types(void) JL_GC_DISABLED
                             jl_module_type,
                             jl_sym_type,
                             jl_int32_type,
+                            jl_long_type,
+                            jl_long_type,
                             jl_type_type,
-                            jl_long_type,
-                            jl_long_type,
                             jl_any_type, // Union{Array, Nothing}
                             jl_any_type, // TypeMap
                             jl_string_type,
@@ -2101,37 +2102,52 @@ void jl_init_types(void) JL_GC_DISABLED
     jl_method_instance_type =
         jl_new_datatype(jl_symbol("MethodInstance"), core,
                         jl_any_type, jl_emptysvec,
-                        jl_perm_symsvec(14,
+                        jl_perm_symsvec(7,
                             "def",
                             "specTypes",
-                            "rettype",
                             "sparam_vals",
+                            "uninferred",
                             "backedges",
-                            "inferred",
-                            "inferred_const",
-                            "min_world",
-                            "max_world",
-                            "inInference",
-                            "",
-                            "specsig",
-                            "invoke",
-                            "specptr"),
-                        jl_svec(14,
+                            "cache",
+                            "inInference"),
+                        jl_svec(7,
                             jl_new_struct(jl_uniontype_type, jl_method_type, jl_module_type),
-                            jl_any_type,
                             jl_any_type,
                             jl_simplevector_type,
                             jl_any_type,
                             jl_any_type,
                             jl_any_type,
+                            jl_bool_type),
+                        0, 1, 3);
+
+    jl_code_instance_type =
+        jl_new_datatype(jl_symbol("CodeInstance"), core,
+                        jl_any_type, jl_emptysvec,
+                        jl_perm_symsvec(10,
+                            "def",
+                            "next",
+                            "min_world",
+                            "max_world",
+                            "rettype",
+                            "rettype_const",
+                            "inferred",
+                            //"edges",
+                            //"absolute_max",
+                            "isspecsig", "invoke", "specptr"), // function object decls
+                        jl_svec(10,
+                            jl_method_instance_type,
+                            jl_any_type,
                             jl_long_type,
                             jl_long_type,
+                            jl_any_type,
+                            jl_any_type,
+                            jl_any_type,
+                            //jl_any_type,
+                            //jl_bool_type,
                             jl_bool_type,
-                            jl_bool_type,
-                            jl_bool_type,
-                            jl_any_type, // fptr
-                            jl_any_type), // fptr
-                        0, 1, 4);
+                            jl_any_type, jl_any_type), // fptrs
+                        0, 1, 1);
+    jl_svecset(jl_code_instance_type->types, 1, jl_code_instance_type);
 
     // all kinds of types share a method table
     jl_unionall_type->name->mt = jl_uniontype_type->name->mt = jl_datatype_type->name->mt =
@@ -2196,13 +2212,16 @@ void jl_init_types(void) JL_GC_DISABLED
     jl_svecset(jl_methtable_type->types, 6, jl_array_any_type);
 #ifdef __LP64__
     jl_svecset(jl_methtable_type->types, 7, jl_int64_type); // unsigned long
+    jl_svecset(jl_methtable_type->types, 8, jl_int64_type); // uint32_t plus alignment
 #else
     jl_svecset(jl_methtable_type->types, 7, jl_int32_type); // DWORD
-#endif
     jl_svecset(jl_methtable_type->types, 8, jl_int32_type); // uint32_t
+#endif
+    jl_svecset(jl_methtable_type->types, 9, jl_uint8_type);
     jl_svecset(jl_method_type->types, 11, jl_method_instance_type);
-    jl_svecset(jl_method_instance_type->types, 12, jl_voidpointer_type);
-    jl_svecset(jl_method_instance_type->types, 13, jl_voidpointer_type);
+    jl_svecset(jl_method_instance_type->types, 5, jl_code_instance_type);
+    jl_svecset(jl_code_instance_type->types, 8, jl_voidpointer_type);
+    jl_svecset(jl_code_instance_type->types, 9, jl_voidpointer_type);
 
     jl_compute_field_offsets(jl_datatype_type);
     jl_compute_field_offsets(jl_typename_type);
@@ -2218,6 +2237,7 @@ void jl_init_types(void) JL_GC_DISABLED
     jl_compute_field_offsets(jl_phinode_type);
     jl_compute_field_offsets(jl_module_type);
     jl_compute_field_offsets(jl_method_instance_type);
+    jl_compute_field_offsets(jl_code_instance_type);
     jl_compute_field_offsets(jl_unionall_type);
     jl_compute_field_offsets(jl_simplevector_type);
     jl_compute_field_offsets(jl_sym_type);
