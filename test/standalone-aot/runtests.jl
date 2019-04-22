@@ -10,10 +10,12 @@ llvmmod(native_code) =
                       (Ptr{Cvoid},), native_code.p))
 
 pkgdir = @__DIR__
+bindir = string(Sys.BINDIR, "/../tools")
+
 
 GC.enable(false)
 dump_native(irgen(rand, Tuple{}), "librand.o")
-run(`clang -shared -fpic librand.o -o librand.so -L$pkgdir/../../usr/lib -ljulia-debug -ldSFMT`)
+run(`$bindir/clang -shared -fpic librand.o -o librand.so -L$pkgdir/../../usr/lib -ljulia-debug -ldSFMT`)
 ccall((:init_lib, "./librand.so"), Cvoid, ()) 
 @show ccall((:rand, "./librand.so"), Float64, ()) 
 @show ccall((:rand, "./librand.so"), Float64, ()) 
@@ -83,7 +85,7 @@ many() = ("jkljkljkl", :jkljkljkljkl, :asdfasdf, "asdfasdfasdf")
 # @show @jlrun many()
 native = irgen(many, Tuple{})
 dump_native(native, "libmany.o")
-run(`clang -shared -fpic libmany.o -o libmany.so -L$pkgdir/../../usr/lib -ljulia-debug`)
+run(`$bindir/clang -shared -fpic libmany.o -o libmany.so -L$pkgdir/../../usr/lib -ljulia-debug`)
 ccall((:init_lib, "./libmany.so"), Cvoid, ()) 
 @test many() == ccall((:many, "./libmany.so"), Any, ()) 
 
