@@ -884,7 +884,8 @@ void jl_init_types2(void) JL_GC_DISABLED
 // Basic initialization that doesn't load a system image
 JL_DLLEXPORT void jl_init_basics(void) {
     // jl_init();
-    return;
+    if (jl_float64_type)    // already initialized
+        return;
     jl_init_timing();
 #ifdef JULIA_ENABLE_THREADING
     // Make sure we finalize the tls callback before starting any threads.
@@ -971,7 +972,7 @@ JL_DLLEXPORT void jl_init_basics(void) {
     }
 #endif
 
-    // jl_init_threading();
+    jl_init_threading();
 
     // loads sysimg if available, and conditionally sets jl_options.cpu_target
     if (jl_options.cpu_target == NULL)
