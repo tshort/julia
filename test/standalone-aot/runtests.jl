@@ -57,8 +57,8 @@ twox(x) = 2x
 fmap(x) = sum(map(twox, [1, x]))
 @test fmap(10) == @jlrun fmap(10)
 
-hello() = "hellllllo world!"
-@test hello() == @jlrun hello()
+hellostr() = "hellllllo world!"
+@test hellostr() == @jlrun hellostr()
 
 fint() = UInt32
 @test fint() == @jlrun fint()
@@ -103,6 +103,8 @@ funcall(x) = fop(f, x)
 
 @test funcall(2) == @jlrun funcall(2)
 
+hello() = write(Core.stdout, "Hello world...\n")
+@jlrun hello()
 
 nothing
 

@@ -27,31 +27,18 @@ process. This is similar to the `imaging-mode`. The main differences are:
   `standalone-aot-mode`, these are compiled to normal external function calls to be 
   resolved at link time.
 * `cglobal` -- As with `ccall`'s, these are compiled to normal external references.
-* *Global variables* -- This is the tricky part. Global variables (symbols, strings,
+* *Global variables* -- This is a tricky part. Global variables (symbols, strings,
   and Julia global variables) are serialized to a "mini image" (a binary array). An
   initialization function is provided to restore the global variables upon startup.
   The serialization code reuses the machinery in "src/dump.c".
-
-Initialization is another tricky bit. The standard way to embed Julia is to use the
-following template:
-
-```
-int main(int argc, char *argv[])
-{
-    jl_init();
-    // Do stuff...
-    jl_atexit_hook(0);
-    return 0;
-}
-```
-
-It also may fail if `jl_init` relies on having the sysimg.
-Beyond that, we may not want all of what `jl_init` does for some use cases.
+* *Initialization* -- This is another tricky part. Initialization includes a 
+  simplified version of `jl_init` that does not load the standard library. It 
+  initializes many types, including some defined in `base/boot.jl`.
 
 ## Current status
 
 The code can handle `ccall` and `cglobal`. There's working code for serialization and 
-restoration of global variables. Some simple programs work when compiled to a shared 
+restoration of global variables. Some programs work when compiled to a shared 
 library then called from Julia (using `ccall`). It also renames functions, so that 
 `julia_myfun_203` is `myfun` in the resulting object file.
 
@@ -83,9 +70,12 @@ See the `test/standalone-aot/standalone-exe` for two examples.
 This hasn't been tested a lot.
 
 A major problem area is dynamic code that uses `invoke()`. That currently doesn't work
-at all. That is used in IO code, so there's no "hello world", yet.
+at all. 
 
 Right now, the testing code just targets Linux.
+
+Basic IO code that uses `Core.stdout` seems to work. The `print` family of functions
+does not.
 
 The API to adjust the new variable `standalone-aot-mode` in code generation is clunky. 
 Right now, there's a `jl_set_standalone_aot_mode()` function and a 
