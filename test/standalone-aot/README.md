@@ -82,6 +82,9 @@ Right now, there's a `jl_set_standalone_aot_mode()` function and a
 `jl_clear_standalone_aot_mode()` function to control this variable. 
 Control of this mode should probably be done through codegen parameters.
 
+There's a garbage-collection bug lurking somewhere. For at least the `rand()` test, it
+crashes unless GC is disabled.
+
 ## Next steps
 
 - Don't export intrinsics as globals.
@@ -90,6 +93,9 @@ Control of this mode should probably be done through codegen parameters.
 
 Help would be appreciated in any of the above plus code reviews and testing out what types 
 of code compiles and what doesn't. 
+
+To better test standalone code, it might be nicer to test from Python or other scripting
+language.
 
 ## Other ideas
 
