@@ -148,6 +148,9 @@ extern JITEventListener *CreateJuliaJITEventListener();
 // for image reloading
 bool imaging_mode = false;
 
+// for standalone compilation meant for linking with libjulia 
+bool standalone_aot_mode = false;
+
 // shared llvm state
 static LLVMContext jl_LLVMContext;
 TargetMachine *jl_TargetMachine;
