@@ -25,7 +25,6 @@ GC.enable(true)
 using Dates
 fdate(x) = Dates.days(Dates.DateTime(2016, x, 1))
 native = irgen(fdate, Tuple{Int})
-# @show llvmmod(native)
 @show @jlrun fdate(3)
 @test fdate(3) == @jlrun fdate(3)
 
@@ -35,9 +34,6 @@ mutable struct AAA
 end
 @noinline ssum(x) = x.aaa + x.bbb
 fstruct(x) = ssum(AAA(x, 99))
-# @show fstruct(10)
-# @show llvmmod(irgen(fstruct, Tuple{Int}))
-# @show @jlrun fstruct(10)
 @test fstruct(10) == @jlrun fstruct(10)
 
 module ZZ
@@ -103,8 +99,25 @@ funcall(x) = fop(f, x)
 
 @test funcall(2) == @jlrun funcall(2)
 
-hello() = write(Core.stdout, "Hello world...\n")
+hi() = print(Core.stdout, 'X')
+@jlrun hi()
+
+hello() = print(Core.stdout, "Hello world...\n")
 @jlrun hello()
+
+printint() = print(Core.stdout, 123456)
+@jlrun printint()
+
+# # Exception: fatal error in type inference (type bound) 
+# hello2() = print(Core.stdout, 'Z', "Hello world...\n")
+# GC.enable(false)
+# @jlrun hello2()
+# GC.enable(true)
+
+# # Odd error
+# printfloat() = print(Core.stdout, 123.456)
+# @jlrun printfloat()
+
 
 nothing
 

@@ -294,6 +294,12 @@ static void jl_serialize_datatype(jl_serializer_state *s, jl_datatype_t *dt) JL_
             newdt->layout = dt->layout;
             dt = newdt;
         }
+        else if (dt->size == 4) {  // change the type to a UInt32
+            dt = jl_uint32_type;
+        }
+        else if (dt->size == 8) {  // change the type to a UInt64
+            dt = jl_uint64_type;
+        }
         else if (dt->size > 0) {  // change the type to a tuple type with correct size
             dt = jl_tupletype_fill(dt->size, jl_uint8_type);
         }
@@ -1957,7 +1963,12 @@ static jl_value_t *jl_deserialize_value_any(jl_serializer_state *s, uint8_t tag,
         if (ref_only) {
             jl_module_t *m = (jl_module_t*)jl_deserialize_value(s, NULL);
             jl_sym_t *sym = (jl_sym_t*)jl_deserialize_value(s, NULL);
-            jl_datatype_t *dt = (jl_datatype_t*)jl_unwrap_unionall(jl_get_global(m, sym));
+            jl_datatype_t *dt = (jl_datatype_t*)jl_get_global(m, sym);
+            if (mini_image && !dt) {
+                dt = jl_new_datatype(sym, jl_core_module, jl_any_type, jl_emptysvec,
+                                     jl_emptysvec, jl_emptysvec, 0, 0, 0);
+            }
+            dt = (jl_datatype_t*)jl_unwrap_unionall(dt);
             assert(jl_is_datatype(dt));
             jl_value_t *v = (jl_value_t*)dt->name;
             if (usetable)

@@ -878,7 +878,8 @@ void jl_init_types2(void) JL_GC_DISABLED
                                          jl_any_type, jl_emptysvec, 32);
     jl_float64_type = jl_new_primitivetype((jl_value_t*)jl_symbol("Float64"), core,
                                          jl_any_type, jl_emptysvec, 64);
-
+    jl_errorexception_type = jl_new_datatype(jl_symbol("ErrorException"), core, jl_type_type, jl_emptysvec,
+                                             jl_perm_symsvec(1, "msg"), jl_svec(1, jl_string_type), 0, 0, 1);
 }
 
 // Basic initialization that doesn't load a system image

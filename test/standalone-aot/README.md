@@ -67,16 +67,17 @@ llvmmod(irgen(f, Tuple{Int}))
 ```
 
 This code also can be used to compile for standalone libraries and executables.
-See the `test/standalone-aot/standalone-exe` for two examples. 
-This hasn't been tested a lot.
+See the `test/standalone-aot/standalone-exe` for two examples.
+See `test/standalone-aot/runtests.lua` for Lua code that runs examples without the system image.
 
 A major problem area is dynamic code that ends up as a call to  `jl_apply_generic`. 
-That currently doesn't work at all. 
+That doesn't work at all. 
 
 Right now, the testing code just targets Linux.
 
-Basic IO code that uses `Core.stdout` seems to work. More general code does not. 
-For example, `print(Core.stdout, "hello", "\n")` works, but `print(Core.stdout, "hello", '\n')` does not.
+Basic IO code that uses `Core.stdout` seems to work. 
+More general code does not, including writing to `Main.stdout`. 
+`print(Core.stdout, "hello", "\n")` works, but `print(Core.stdout, "hello", '\n')` does not.
 
 The API to adjust the new variable `standalone-aot-mode` in code generation is clunky. 
 Right now, there's a `jl_set_standalone_aot_mode()` function and a 
@@ -88,17 +89,16 @@ crashes unless GC is disabled.
 
 ## Next steps
 
+- Work out `Main.stdin`, `Main.stdout`, etc.
+- Work out exceptions. Right now, they bomb.
 - Don't export intrinsics as globals.
-- Work out stdin, stdout, etc.
-- Work out exceptions.
 - Come up with a strategy for dynamic code that ends up as a call to `jl_apply_generic`.
   For now, maybe just flag it to the user.
+- Debug the GC issue.
+- Debug `print(Core.stdout, "hello", '\n')`.
 
 Help would be appreciated in any of the above plus code reviews and testing out what types 
 of code compiles and what doesn't. 
-
-To better test standalone code, it might be nicer to test from Python or other scripting
-language. That way, we know the system image and standard library isn't available.
 
 ## Other ideas
 
@@ -113,3 +113,4 @@ language. That way, we know the system image and standard library isn't availabl
 * https://github.com/Keno/julia-wasm -- Scripts to compile the wasm version of Julia.
 * https://github.com/Keno/julia-wasm/issues/5 -- Discussion of static compilation for wasm.
 
+See also the **codegen** channel on Slack.
