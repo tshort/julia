@@ -108,6 +108,12 @@ hello() = print(Core.stdout, "Hello world...\n")
 printint() = print(Core.stdout, 123456)
 @jlrun printint()
 
+function fdict(x)
+    d = Dict(:a => 2x)
+    return 2*d[:a]
+end
+@test fdict(3) == @jlrun fdict(3)
+
 # # Exception: fatal error in type inference (type bound) 
 # hello2() = print(Core.stdout, 'Z', "Hello world...\n")
 # GC.enable(false)

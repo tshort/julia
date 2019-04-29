@@ -220,6 +220,8 @@ static jl_value_t *jl_deserialize_value(jl_serializer_state *s, jl_value_t **loc
 static int module_in_worklist(jl_module_t *mod) JL_NOTSAFEPOINT
 {
     int i, l = jl_array_len(serializer_worklist);
+    if (mini_image)
+        return 0;
     for (i = 0; i < l; i++) {
         jl_module_t *workmod = (jl_module_t*)jl_array_ptr_ref(serializer_worklist, i);
         if (jl_is_module(workmod) && jl_is_submodule(mod, workmod))
@@ -339,7 +341,7 @@ static void jl_serialize_datatype(jl_serializer_state *s, jl_datatype_t *dt) JL_
 
     if (strncmp(jl_symbol_name(dt->name->name), "#kw#", 4) == 0) {
         /* XXX: yuck, but the auto-generated kw types from the serializer isn't a real type, so we *must* be very careful */
-        assert(tag == 0 || tag == 5 || tag == 6 || tag == 10);
+        assert(tag == 0 || tag == 5 || tag == 6 || tag == 10 || tag == 11);
         if (tag == 6) {
             jl_methtable_t *mt = dt->name->mt;
             jl_datatype_t *primarydt = (jl_datatype_t*)jl_unwrap_unionall(jl_get_global(mt->module, mt->name));
@@ -417,6 +419,8 @@ static void jl_serialize_module(jl_serializer_state *s, jl_module_t *m)
 {
     write_uint8(s->s, TAG_MODULE);
     jl_serialize_value(s, m->name);
+    // if (mini_image)
+        // return;
     size_t i;
     if (!module_in_worklist(m)) {
         if (m == m->parent) {
@@ -1005,6 +1009,10 @@ static void jl_serialize_value_(jl_serializer_state *s, jl_value_t *v, int as_li
                     write_uint8(s->s, (uint8_t)(intptr_t)bttag);
                     return;
                 }
+                // else if (mini_image) {
+                //     write_uint8(s->s, TAG_BITYPENAME);
+                //     write_uint8(s->s, (uint8_t)54);
+                // }
             }
             if (t->size <= 255) {
                 write_uint8(s->s, TAG_SHORT_GENERAL);
@@ -1016,6 +1024,7 @@ static void jl_serialize_value_(jl_serializer_state *s, jl_value_t *v, int as_li
             }
             jl_serialize_value(s, t);
             if (t == jl_typename_type) {
+                // if (mini_image || module_in_worklist(((jl_typename_t*)v)->module)) {
                 if (module_in_worklist(((jl_typename_t*)v)->module)) {
                     write_uint8(s->s, 0);
                 }
@@ -1789,6 +1798,8 @@ static jl_value_t *jl_deserialize_value_module(jl_serializer_state *s) JL_GC_DIS
     if (usetable)
         arraylist_push(&backref_list, NULL);
     jl_sym_t *mname = (jl_sym_t*)jl_deserialize_value(s, NULL);
+    if (mini_image)
+        return jl_core_module;
     int ref_only = read_uint8(s->s);
     if (ref_only) {
         jl_value_t *m_ref;
@@ -2919,8 +2930,8 @@ JL_DLLEXPORT void jl_save_mini_image_to_stream(ios_t *f, jl_array_t *worklist)
     };
     mini_image = 1;
     jl_serialize_value(&s, worklist);
-    jl_serialize_value(&s, lambdas);
-    jl_serialize_value(&s, edges);
+    // jl_serialize_value(&s, lambdas);
+    // jl_serialize_value(&s, edges);
     jl_finalize_serializer(&s);
     serializer_worklist = NULL;
     mini_image = 0;
