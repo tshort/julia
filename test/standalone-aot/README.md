@@ -92,7 +92,7 @@ crashes unless GC is disabled.
 - Work out `Main.stdin`, `Main.stdout`, etc.
 - Work out exceptions. Right now, they bomb.
 - Don't export intrinsics as globals.
-- Come up with a strategy for dynamic code that ends up as a call to `jl_apply_generic`.
+- Come up with a strategy for dynamic code that ends up as a call to `jl_invoke` or `jl_apply_generic`.
   For now, maybe just flag it to the user.
 - Debug the GC issue.
 - Debug `print(Core.stdout, "hello", '\n')`.

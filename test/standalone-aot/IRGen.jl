@@ -70,7 +70,7 @@ macro jlrun(e)
     quote
         native = irgen($efun, $tt)
         dump_native(native, $libpath)
-        run($(`$bindir/clang -shared -fpic $libpath -o $dylibpath -L$pkgdir/../../usr/lib -ljulia-debug -ldSFMT`), wait = true)
+        run($(`$bindir/clang -shared -fpic $libpath -o $dylibpath -L$pkgdir/../../usr/lib -ljulia-debug -ldSFMT -lopenblas64_`), wait = true)
         dylib = Libdl.dlopen($dylibpath)
         ccall(Libdl.dlsym(dylib, "init_lib"), Cvoid, ()) 
         ccall(Libdl.dlsym(dylib, $(Meta.quot(fun))),

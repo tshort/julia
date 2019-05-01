@@ -114,6 +114,14 @@ function fdict(x)
 end
 @test fdict(3) == @jlrun fdict(3)
 
+using LinearAlgebra
+function flu(x)
+    A = Float64[x 3.3; 6.0 3.0]
+    F = lu(A)
+    return F.U[1,1]
+end
+@test flu(3.3) == @jlrun flu(3.3)
+
 # # Exception: fatal error in type inference (type bound) 
 # hello2() = print(Core.stdout, 'Z', "Hello world...\n")
 # GC.enable(false)

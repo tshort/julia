@@ -609,6 +609,11 @@ static void interpret_symbol_arg(jl_codectx_t &ctx, native_sym_arg_t &out, jl_va
     const char *&f_lib = out.f_lib;
 
     jl_value_t *ptr = static_eval(ctx, arg, true);
+    if (ptr == NULL && standalone_aot_mode && jl_is_expr(arg)) {
+        jl_expr_t *ex = (jl_expr_t*)arg;
+        jl_value_t **eargs = (jl_value_t**)jl_array_data(ex->args);
+        ptr = static_eval(ctx, eargs[1], true);
+    }
     if (ptr == NULL) {
         jl_cgval_t arg1 = emit_expr(ctx, arg);
         jl_value_t *ptr_ty = arg1.typ;
