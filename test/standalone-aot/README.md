@@ -96,6 +96,7 @@ crashes unless GC is disabled.
   For now, maybe just flag it to the user.
 - Debug the GC issue.
 - Debug `print(Core.stdout, "hello", '\n')`.
+- Handle `@cfunction`.
 
 Help would be appreciated in any of the above plus code reviews and testing out what types 
 of code compiles and what doesn't. 

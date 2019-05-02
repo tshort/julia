@@ -779,7 +779,7 @@ static void jl_serialize_value_(jl_serializer_state *s, jl_value_t *v, int as_li
         write_uint8(s->s, TAG_UNIONALL);
         jl_datatype_t *d = (jl_datatype_t*)jl_unwrap_unionall(v);
         if (jl_is_datatype(d) && d->name->wrapper == v &&
-            !module_in_worklist(d->name->module)) {
+            !module_in_worklist(d->name->module) && !mini_image) {
             write_uint8(s->s, 1);
             jl_serialize_value(s, d->name->module);
             jl_serialize_value(s, d->name->name);
@@ -1392,6 +1392,7 @@ static jl_value_t *jl_deserialize_datatype(jl_serializer_state *s, int pos, jl_v
     if (tag == 11) {
         jl_datatype_t *dt = jl_new_datatype(jl_symbol("DummyType"), jl_core_module, jl_any_type, jl_emptysvec,
                                             jl_emptysvec, jl_emptysvec, 0, 0, 0);
+        backref_list.items[pos] = dt;
         return dt;
     }
     size_t size = read_int32(s->s);
