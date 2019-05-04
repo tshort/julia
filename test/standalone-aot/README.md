@@ -93,10 +93,12 @@ crashes unless GC is disabled.
 - Work out exceptions. Right now, they bomb.
 - Don't export intrinsics as globals.
 - Come up with a strategy for dynamic code that ends up as a call to `jl_invoke` or `jl_apply_generic`.
-  For now, maybe just flag it to the user.
+  For now, it is flagged to the user.
 - Debug the GC issue.
 - Debug `print(Core.stdout, "hello", '\n')`.
 - Handle `@cfunction`.
+- Look at lowering of `ptls_states`. Some standalone functions run fine when called from Julia 
+  but fail with an allocation error when run externally.
 
 Help would be appreciated in any of the above plus code reviews and testing out what types 
 of code compiles and what doesn't. 
