@@ -755,7 +755,7 @@ static jl_cgval_t emit_cglobal(jl_codectx_t &ctx, jl_value_t **args, size_t narg
             jl_printf(JL_STDERR,"WARNING: literal address used in cglobal for %s; code cannot be statically compiled\n", sym.f_name);
     }
     else {
-        if (imaging_mode || standalone_aot_mode) {
+        if (imaging_mode) {
             res = runtime_sym_lookup(ctx, cast<PointerType>(T_pint8), sym.f_lib, sym.f_name, ctx.f);
             res = ctx.builder.CreatePtrToInt(res, lrt);
         }

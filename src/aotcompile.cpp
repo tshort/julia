@@ -450,7 +450,8 @@ void *jl_create_native(jl_array_t *methods, const jl_cgparams_t cgparams)
     std::map<jl_code_instance_t*, jl_compile_result_t> emitted;
     jl_method_instance_t *mi = NULL;
     jl_code_info_t *src = NULL;
-    JL_GC_PUSH1(&src);
+    jl_array_t *gvararray = NULL;
+    JL_GC_PUSH2(&src, &gvararray);
     JL_LOCK(&codegen_lock);
 
     // compile all methods for the current world and type-inference world
@@ -497,12 +498,11 @@ void *jl_create_native(jl_array_t *methods, const jl_cgparams_t cgparams)
         // finally, make sure all referenced methods also get compiled or fixed up
         jl_compile_workqueue(emitted, params);
     }
-    JL_GC_POP();
 
     // process the globals array, before jl_merge_module destroys them
     std::vector<std::string> gvars;
     std::vector<std::string> allgvars;
-    jl_array_t *gvararray = jl_alloc_vec_any(0);
+    gvararray = jl_alloc_vec_any(0);
     for (auto &global : params.globals) {
         allgvars.push_back(global.second->getName());
         data->jl_value_to_llvm[global.first] = allgvars.size();
@@ -603,6 +603,7 @@ void *jl_create_native(jl_array_t *methods, const jl_cgparams_t cgparams)
                 cast<Function>(data->M->getNamedValue(tbl.first))->setName(tbl.second);
         }
     }
+    JL_GC_POP();
     JL_UNLOCK(&codegen_lock); // Might GC
     return (void*)data;
 }
