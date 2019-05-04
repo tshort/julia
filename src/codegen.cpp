@@ -2658,8 +2658,10 @@ static jl_cgval_t emit_invoke(jl_codectx_t &ctx, jl_expr_t *ex, jl_value_t *rt)
     if (!handled) {
         Value *r = emit_jlcall(ctx, prepare_call(jlinvoke_func), boxed(ctx, lival), argv, nargs);
         result = mark_julia_type(ctx, r, true, rt);
-        if (standalone_aot_mode)
-            jl_printf(JL_STDERR, "Warning: jl_invoke() used for in `%s`\n", ctx.name);
+        if (standalone_aot_mode) {
+            jl_printf(JL_STDERR, "Warning: jl_invoke() used for `%s` in `%s`\n", 
+                jl_symbol_name(jl_globalref_name(args[1])), ctx.name);
+        }
     }
     if (result.typ == jl_bottom_type)
         CreateTrap(ctx.builder);
