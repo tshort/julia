@@ -2659,7 +2659,7 @@ static jl_cgval_t emit_invoke(jl_codectx_t &ctx, jl_expr_t *ex, jl_value_t *rt)
         Value *r = emit_jlcall(ctx, prepare_call(jlinvoke_func), boxed(ctx, lival), argv, nargs);
         result = mark_julia_type(ctx, r, true, rt);
         if (standalone_aot_mode) {
-            jl_printf(JL_STDERR, "Warning: jl_invoke() used for `%s` in `%s`\n", 
+            jl_printf(JL_STDERR, "Warning: jl_invoke() used for `%s` in `%s`.\n", 
                 jl_symbol_name(jl_globalref_name(args[1])), ctx.name);
         }
     }
@@ -2706,6 +2706,16 @@ static jl_cgval_t emit_call(jl_codectx_t &ctx, jl_expr_t *ex, jl_value_t *rt)
         }
     }
 
+    if (standalone_aot_mode) {
+        if (jl_is_globalref(args[0])) {
+            jl_printf(JL_STDERR, "Warning: jl_apply_generic() used for `%s` in `%s`.\n", 
+                jl_symbol_name(jl_globalref_name(args[0])), ctx.name);
+        }
+        else if (jl_is_ssavalue(args[0])) {
+            jl_printf(JL_STDERR, "Warning: jl_apply_generic() used for an SSAValue in `%s`.\n", 
+                ctx.name);
+        }
+    }
     // emit function and arguments
     Value *callval = emit_jlcall(ctx, jlapplygeneric_func, nullptr, argv, nargs);
     return mark_julia_type(ctx, callval, true, rt);
