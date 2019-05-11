@@ -15,7 +15,8 @@ bindir = string(Sys.BINDIR, "/../tools")
 
 GC.enable(false)
 dump_native(irgen(rand, Tuple{}), "librand.o")
-run(`$bindir/clang -shared -fpic librand.o -o librand.so -L$pkgdir/../../usr/lib -ljulia-debug -ldSFMT`)
+run(`$bindir/clang -shared -fpic librand.o -o librand.so -L$bindir/../lib -ljulia-debug -ldSFMT`)
+run(`$bindir/clang -shared -fpic librand.o -o librand.wasm -L$bindir/../lib -ljulia-debug -ldSFMT`)
 ccall((:init_lib, "./librand.so"), Cvoid, ()) 
 @show ccall((:rand, "./librand.so"), Float64, ()) 
 @show ccall((:rand, "./librand.so"), Float64, ()) 
@@ -48,6 +49,8 @@ ffstruct(x) = ZZ.fstruct(x)
 @test ffstruct(10) == @jlrun ffstruct(10)
 
 twox(x) = 2x
+dump_native(irgen(twox, Tuple{Float64}), "libtwox.o")
+run(`$bindir/clang -emit-llvm --target=wasm32-shared -fpic libtwox.o -o libtwox.wasm -L$bindir/../lib -ljulia-debug -ldSFMT`)
 @test twox(10) == @jlrun twox(10)
 
 fmap(x) = sum(map(twox, [1, x]))
@@ -81,7 +84,7 @@ many() = ("jkljkljkl", :jkljkljkljkl, :asdfasdf, "asdfasdfasdf")
 # @show @jlrun many()
 native = irgen(many, Tuple{})
 dump_native(native, "libmany.o")
-run(`$bindir/clang -shared -fpic libmany.o -o libmany.so -L$pkgdir/../../usr/lib -ljulia-debug`)
+run(`$bindir/clang -shared -fpic libmany.o -o libmany.so -L$bindir/../lib -ljulia-debug`)
 ccall((:init_lib, "./libmany.so"), Cvoid, ()) 
 @test many() == ccall((:many, "./libmany.so"), Any, ()) 
 
