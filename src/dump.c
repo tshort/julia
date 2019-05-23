@@ -292,9 +292,20 @@ static void jl_serialize_datatype(jl_serializer_state *s, jl_datatype_t *dt) JL_
     int internal = module_in_worklist(dt->name->module);
     if (mini_image && !jl_is_tuple_type(dt) && !jl_is_array_type(dt) && dt != jl_float64_type) {
         if (dt->layout && jl_datatype_nfields(dt) > 0) {  // change the type to a tuple type with correct size
+            // dt->name->module = jl_core_module;  // fudge the module
             jl_datatype_t *newdt = jl_apply_tuple_type(dt->types);
             newdt->layout = dt->layout;
+            newdt->instance = dt->instance;
+            newdt->ninitialized = dt->ninitialized;
+            newdt->isinlinealloc = dt->isinlinealloc;
+            newdt->mutabl = dt->mutabl;
             dt = newdt;
+        }
+        else if (dt->size == 1) {  // change the type to a UInt8
+            dt = jl_uint8_type;
+        }
+        else if (dt->size == 2) {  // change the type to a UInt16
+            dt = jl_uint16_type;
         }
         else if (dt->size == 4) {  // change the type to a UInt32
             dt = jl_uint32_type;
@@ -302,8 +313,8 @@ static void jl_serialize_datatype(jl_serializer_state *s, jl_datatype_t *dt) JL_
         else if (dt->size == 8) {  // change the type to a UInt64
             dt = jl_uint64_type;
         }
-        else if (dt->size > 0) {  // change the type to a tuple type with correct size
-            dt = jl_tupletype_fill(dt->size, jl_uint8_type);
+        else if (dt->size > 0) {  // change the type to a primitive type with correct size
+            dt = jl_new_primitivetype(jl_symbol("BitsTypeX"), jl_core_module, jl_any_type, jl_emptysvec, dt->size * 8);
         }
         else if (dt->instance) {  // use a special tag to flag Singletons
             tag = 11;
@@ -406,6 +417,8 @@ static void jl_serialize_datatype(jl_serializer_state *s, jl_datatype_t *dt) JL_
         }
     }
 
+    if (has_instance && mini_image)
+        return;
     if (has_instance)
         jl_serialize_value(s, dt->instance);
     jl_serialize_value(s, dt->name);
@@ -419,8 +432,8 @@ static void jl_serialize_module(jl_serializer_state *s, jl_module_t *m)
 {
     write_uint8(s->s, TAG_MODULE);
     jl_serialize_value(s, m->name);
-    // if (mini_image)
-        // return;
+    if (mini_image)
+        return;
     size_t i;
     if (!module_in_worklist(m)) {
         if (m == m->parent) {
@@ -1485,6 +1498,13 @@ static jl_value_t *jl_deserialize_datatype(jl_serializer_state *s, int pos, jl_v
     }
 
     if (has_instance) {
+        if (mini_image) {
+            jl_datatype_t *newdt = jl_new_datatype(jl_symbol("DummyType2"), jl_core_module, jl_any_type, jl_emptysvec,
+                                                   jl_emptysvec, jl_emptysvec, 0, 0, 0);
+            newdt->layout = dt->layout;
+            newdt->instance = dt->instance;
+            return (jl_value_t*)newdt;
+        }
         assert(dt->uid != 0 && "there shouldn't be an instance on a type with uid = 0");
         dt->instance = jl_deserialize_value(s, &dt->instance);
         jl_gc_wb(dt, dt->instance);
@@ -1799,8 +1819,10 @@ static jl_value_t *jl_deserialize_value_module(jl_serializer_state *s) JL_GC_DIS
     if (usetable)
         arraylist_push(&backref_list, NULL);
     jl_sym_t *mname = (jl_sym_t*)jl_deserialize_value(s, NULL);
-    if (mini_image)
+    if (mini_image) {
+        backref_list.items[pos] = jl_core_module;
         return jl_core_module;
+    }
     int ref_only = read_uint8(s->s);
     if (ref_only) {
         jl_value_t *m_ref;
@@ -2930,6 +2952,7 @@ JL_DLLEXPORT void jl_save_mini_image_to_stream(ios_t *f, jl_array_t *worklist)
         mod_array
     };
     mini_image = 1;
+    // jl_(worklist) ;
     jl_serialize_value(&s, worklist);
     // jl_serialize_value(&s, lambdas);
     // jl_serialize_value(&s, edges);
@@ -3363,6 +3386,7 @@ JL_DLLEXPORT void jl_restore_mini_sysimg(void *jl_sysimg_gvars, void *jl_system_
     mini_image = 1;
     jl_array_t *restored = (jl_array_t*)jl_deserialize_value(&s, (jl_value_t**)&restored);
     serializer_worklist = restored;
+    // jl_(restored);
 
     // get list of external generic functions
     // jl_value_t *external_methods = jl_deserialize_value(&s, &external_methods);
