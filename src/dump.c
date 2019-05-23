@@ -292,14 +292,12 @@ static void jl_serialize_datatype(jl_serializer_state *s, jl_datatype_t *dt) JL_
     int internal = module_in_worklist(dt->name->module);
     if (mini_image && !jl_is_tuple_type(dt) && !jl_is_array_type(dt) && dt != jl_float64_type) {
         if (dt->layout && jl_datatype_nfields(dt) > 0) {  // change the type to a tuple type with correct size
-            // dt->name->module = jl_core_module;  // fudge the module
-            jl_datatype_t *newdt = jl_apply_tuple_type(dt->types);
-            newdt->layout = dt->layout;
-            newdt->instance = dt->instance;
-            newdt->ninitialized = dt->ninitialized;
-            newdt->isinlinealloc = dt->isinlinealloc;
-            newdt->mutabl = dt->mutabl;
-            dt = newdt;
+            dt->name->module = jl_core_module;  // fudge the module
+            // jl_datatype_t *newdt = jl_apply_tuple_type(dt->types);
+            // newdt->layout = dt->layout;
+            // newdt->instance = dt->instance;
+            // newdt->ninitialized = dt->ninitialized;
+            // dt = newdt;
         }
         else if (dt->size == 1) {  // change the type to a UInt8
             dt = jl_uint8_type;
