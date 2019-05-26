@@ -471,8 +471,6 @@ void jl_start_threads(void)
     uv_barrier_wait(&thread_init_done);
 }
 
-#endif
-
 unsigned volatile _threadedregion; // HACK: prevent the root task from sleeping
 
 // simple fork/join mode code
@@ -543,6 +541,8 @@ JL_DLLEXPORT void jl_threading_run(jl_value_t *func)
     JL_GC_POP();
     jl_gc_unsafe_leave(ptls, gc_state);
 }
+
+#endif
 
 
 #ifndef JULIA_ENABLE_THREADING
